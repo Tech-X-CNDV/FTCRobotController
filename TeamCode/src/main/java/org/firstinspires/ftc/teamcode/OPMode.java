@@ -36,6 +36,8 @@ public class OPMode extends OpMode {
     private double slowModeMultiplier = 0.5;
     DcMotorEx storageMotor;
     DcMotorEx prindMotor;
+    DcMotorEx outtakeMotor;
+    DcMotorEx shootMotor;
     ColorSensor sensor = null;
     float[] hsvValues = new float[3];
     ElapsedTime runTime = new ElapsedTime();
@@ -51,8 +53,11 @@ public class OPMode extends OpMode {
     Servo servoArunc;
     boolean paused = false;
     boolean move = false;
+    boolean smallMove = false;
     HuskyLens hLens;
     int lastId = 1;
+    int outtakeDir = 1;
+    boolean autoThrow = false;
 
     char idenColor(){
         float hue = hsvValues[0];
@@ -67,10 +72,10 @@ public class OPMode extends OpMode {
 
     void PatternSortAuto(String pattern){
         if(pos > 2 && !paused) {
-            autoSort = false;
             pos = 0;
             turns = 0;
             servoArunc.setPosition(1);
+            autoSort = false;
         }
         char[] patt = pattern.toCharArray();
         curChar = patt[pos];
@@ -97,9 +102,33 @@ public class OPMode extends OpMode {
         }
     }
 
+    void ThrowAll(){
+        if(turns > 3) {
+            turns = 0;
+            thrown = 0;
+            servoArunc.setPosition(1);
+            autoThrow = false;
+        }
+        if(!move)
+            servoArunc.setPosition(0.6);
+        if(runTime.seconds() - timer > 1) {
+            if(autoThrow && !paused && !move) {
+                servoArunc.setPosition(1);
+                storageMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+                storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                move = true;
+                turns++;
+                if (turns > 3)
+                    autoThrow = false;
+                timer = runTime.seconds();
+            }
+            thrown++;
+        }
+    }
+
     void MoveToPosition(DcMotorEx motor, int target, double power){
         telemetry.addData("Target", target);
-        if(storageMotor.getCurrentPosition() < target){
+        if(target - storageMotor.getCurrentPosition() > 485){
             motor.setPower(power);
         }else{
             motor.setPower(0);
@@ -125,11 +154,19 @@ public class OPMode extends OpMode {
         storageMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         storageMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         storageMotor.setPower(0);
-        storageMotor.setTargetPosition(0);
-        storageMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        storageMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         prindMotor = hardwareMap.get(DcMotorEx.class, "PrindMotor");
         prindMotor.setPower(0);
         prindMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        outtakeMotor = hardwareMap.get(DcMotorEx.class, "OuttakeMotor");
+        outtakeMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        outtakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        outtakeMotor.setTargetPosition(0);
+        outtakeMotor.setPower(0);
+        outtakeMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shootMotor = hardwareMap.get(DcMotorEx.class, "ShootMotor");
+        shootMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shootMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         servoArunc = hardwareMap.get(Servo.class, "ServoArunc");
         servoArunc.setPosition(1);
         hLens = hardwareMap.get(HuskyLens.class, "hLens");
@@ -144,7 +181,7 @@ public class OPMode extends OpMode {
         //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)
-        follower.startTeleopDrive();
+        follower.startTeleopDrive(true);
     }
 
     @Override
@@ -175,10 +212,10 @@ public class OPMode extends OpMode {
         }
 
         //Automated PathFollowing
-        if (gamepad1.aWasPressed()) {
-            follower.followPath(pathChain.get());
-            automatedDrive = true;
-        }
+//        if (gamepad1.aWasPressed()) {
+//            follower.followPath(pathChain.get());
+//            automatedDrive = true;
+//        }
 
         //Stop automated following if the follower is done
         if (automatedDrive && (gamepad1.bWasPressed() || !follower.isBusy())) {
@@ -195,7 +232,7 @@ public class OPMode extends OpMode {
         Color.RGBToHSV(sensor.red() * 8, sensor.green() * 8, sensor.blue() * 8, hsvValues);
         float hue = hsvValues[0];
         float sat = hsvValues[1];
-        if(gamepad1.bWasPressed() && !autoSort && !move) {
+        if(gamepad2.bWasPressed() && !autoSort && !move) {
             storageMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
             storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             pos = 0;
@@ -203,18 +240,54 @@ public class OPMode extends OpMode {
             autoSort = true;
         }
         prindMotor.setPower(gamepad1.right_trigger);
-        if(gamepad1.dpadUpWasPressed() && !storageMotor.isBusy() && !move) {
+        if(gamepad2.xWasPressed()) {
+            shootMotor.setPower(1);
+            autoThrow = true;
+        }
+        if(gamepad2.dpadUpWasPressed() && !storageMotor.isBusy() && !move) {
+            storageMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+            storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            servoArunc.setPosition(1);
+            move = true;
+        }
+        if (gamepad2.dpadLeftWasPressed() && !move){
+            storageMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+            storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            smallMove = true;
+        }
+        if(gamepad1.left_trigger > 0 && !storageMotor.isBusy() && !move) {
             storageMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
             storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             move = true;
         }
-        if (gamepad1.dpadLeftWasPressed())
-            servoArunc.setPosition(servoArunc.getPosition() == 0.7 ? 1 : 0.7);
+        if(outtakeMotor.getCurrentPosition() > -500 && gamepad2.right_stick_x < 0)
+            outtakeMotor.setPower(gamepad2.right_stick_x);
+        else if(outtakeMotor.getCurrentPosition() < 700 && gamepad2.right_stick_x > 0)
+            outtakeMotor.setPower(gamepad2.right_stick_x);
+        else
+            outtakeMotor.setPower(0);
+//        if(gamepad2.left_trigger > 0) {
+//            outtakeMotor.setPower(outtakeDir * 0.3);
+//            outtakeMotor.setTargetPosition(outtakeMotor.getCurrentPosition() + outtakeDir * 100);
+//        }else {
+//            outtakeMotor.setPower(0);
+//            outtakeMotor.setTargetPosition(outtakeMotor.getCurrentPosition());
+//        }
+        if(gamepad2.dpadRightWasPressed())
+            servoArunc.setPosition(servoArunc.getPosition() == 1 ? 0.7 : 1);
+        if(gamepad2.aWasPressed())
+            shootMotor.setPower(shootMotor.getPower() > 0.0 ? 0.0 : 1);
         if(move)
-            MoveToPosition(storageMotor, 2232, 0.6);
+            MoveToPosition(storageMotor, 2750, 0.5);
+        if(smallMove)
+            MoveToPosition(storageMotor, 700, 0.6);
         paused = runTime.seconds() - timerServo < 1;
         if(autoSort)
             PatternSortAuto(patterns[lastId]);
+        if(autoThrow)
+            ThrowAll();
+        if (turns > 3)
+            turns = 0;
         telemetry.addData("Hue: ", hue);
         telemetry.addData("Sat: ", sat);
         if(idenColor() == 'G')
@@ -229,8 +302,12 @@ public class OPMode extends OpMode {
         telemetry.addData("Power", storageMotor.getPower());
         telemetry.addData("Busy", storageMotor.isBusy());
         telemetry.addData("Paused", paused);
-        telemetry.addData("Encoder", storageMotor.getCurrentPosition());
+        telemetry.addData("EncoderStorage", storageMotor.getCurrentPosition());
+        telemetry.addData("EncoderOuttake", outtakeMotor.getCurrentPosition());
+        telemetry.addData("OuttakeTarget", outtakeMotor.getTargetPosition());
+        telemetry.addData("OuttakeDir", outtakeDir);
         telemetry.addData("Move", move);
+        telemetry.addData("ShooterServo", servoArunc.getPosition());
         if(blocks.length > 0)
             lastId = blocks[0].id;
         telemetry.addData("Id", lastId + " " + patterns[lastId]);
