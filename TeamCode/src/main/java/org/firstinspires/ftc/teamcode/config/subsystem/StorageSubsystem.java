@@ -50,31 +50,40 @@ public class StorageSubsystem {
     public boolean autoThrow = false;
 
     public void ThrowAll() {
-        if (turns > 3) {
-            turns = 0;
-            servoArunc.setPosition(1);
-            this.autoThrow = false;
+        if (storageMotor.isBusy()) {
+            isMoving = true;
+            return;
         }
-        if (!storageMotor.isBusy()) {
-            servoArunc.setPosition(0.6);
+
+        if (isMoving) {
             servoTimer.reset();
+            servoArunc.setPosition(0.6);
+            isMoving = false;
         }
-        if (servoTimer.seconds() > 1) {
-            if (autoThrow) {
-                servoArunc.setPosition(1);
+        if (servoTimer.seconds() > 0.5) {
+            servoArunc.setPosition(1);
+            if(turns>=3) {
+                turns = 0;
+                autoThrow = false;
+                return;
+            }
+            if(servoTimer.seconds() > 0.9) {
                 MoveToPosition(475, 1);
                 turns++;
-                if (turns > 3)
-                    this.autoThrow = false;
             }
+        }
+        if (turns == 0) {
+            servoArunc.setPosition(0.6);
+            turns++;
         }
     }
 
     int pos = 0, turns = 0;
-    ElapsedTime checkTimer = new ElapsedTime();
-    ElapsedTime servoTimer = new ElapsedTime();
+    public ElapsedTime checkTimer = new ElapsedTime();
+    public ElapsedTime servoTimer = new ElapsedTime();
     boolean isMoving = false;
     public boolean autoSort = false;
+    int add = 1;
 
     public void PatternSortAuto(char[] pattern) {
         if (storageMotor.isBusy()) {
@@ -84,10 +93,12 @@ public class StorageSubsystem {
 
         if (isMoving) {
             checkTimer.reset();
+            add = 1;
             isMoving = false;
         }
         if (checkTimer.seconds() > 2 && servoTimer.seconds() > 1) {
             MoveToPosition(475, 1);
+            turns++;
             checkTimer.reset(); // Reset AFTER starting the move
         }
 
@@ -103,8 +114,10 @@ public class StorageSubsystem {
 
         if (autoSort && currentColor != pattern[pos]) {
             servoArunc.setPosition(1);
-            turns++;
-            if (turns > 3) this.autoSort = false;
+            if (turns >= 3) {
+                turns = 0;
+                this.autoSort = false;
+            }
         } else if (currentColor == pattern[pos]) {
             turns = 0;
             pos++;
@@ -113,11 +126,14 @@ public class StorageSubsystem {
         }
     }
 
+    public float hue;
+    public float sat;
+
     public char idenColor() {
         float[] hsvValues = new float[3];
         Color.RGBToHSV(colorSensor.red() * 8, colorSensor.green() * 8, colorSensor.blue() * 8, hsvValues);
-        float hue = hsvValues[0];
-        float sat = hsvValues[1];
+        hue = hsvValues[0];
+        sat = hsvValues[1];
         if (sat < 0.35)
             return 'P';
         else if (hue > 120 && hue < 150)
@@ -148,5 +164,9 @@ public class StorageSubsystem {
 
     public int getPosition() {
         return storageMotor.getCurrentPosition();
+    }
+
+    public boolean isBusy() {
+        return storageMotor.isBusy();
     }
 }
