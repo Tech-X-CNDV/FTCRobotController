@@ -8,6 +8,7 @@ import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
+import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
@@ -25,23 +26,24 @@ public class AutonomieRed extends OpMode {
 
 //    public Outtake motorOuttake,servoPusher;
 
-    private final Pose startPose = new Pose(23.25028571428571, 126.49142857142861, Math.toRadians(-37));
-    private final Pose scorePose = new Pose(50.89828571428571, 91.78971428571427, Math.toRadians(140));
-    private final Pose pickup1 = new Pose(50.89828571428571, 78.75771428571429, Math.toRadians(-180));
-    private final Pose getPick1 = new Pose(15.605714285714289, 78.75771428571429, Math.toRadians(-180));
-    private final Pose pickup2 = new Pose(50.89828571428571,  55.325714285714284, Math.toRadians(-180));
-    private final Pose getPick2 = new Pose(8.603428571428566, 55.325714285714284, Math.toRadians(-180));
-    private  final Pose getPick2Back = new Pose(15.603428571428566, 55.325714285714284, Math.toRadians(-180));
-    private final Pose parkPose = new Pose(15.605714285714289, 88.75771428571429, Math.toRadians(-180));
+    // Pose Constants for the Red Side
+    private final Pose startPose = new Pose(120.74971428571429, 126.49142857142861, Math.toRadians(-143));
+    private final Pose scorePose = new Pose(93.10171428571429, 91.78971428571427, Math.toRadians(40));
+    private final Pose pickup1 = new Pose(93.752093, 80.555171, Math.toRadians(0));
+    private final Pose getPick1 = new Pose(126.80743, 80.555171, Math.toRadians(0));
+    private final Pose pickup2 = new Pose(91.752093, 57.929082, Math.toRadians(0));
+    private final Pose getPick2 = new Pose(130.212131, 53.55333, Math.toRadians(0));
+    private final Pose getPick2Back = new Pose(115.39657142857143, 54.55333, Math.toRadians(0));
+    private final Pose parkPose = new Pose(123.39428571428572, 88.75771428571429, Math.toRadians(0));
+
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8;
 
     public void buildPaths() {
         path1 = follower.pathBuilder()
-//                .addPath(new BezierCurve(startPose, new Pose(58.5, 97.2), scorePose))
                 .addPath(new BezierLine(startPose, scorePose))
-//                .setConstantHeadingInterpolation(Math.toRadians(89))
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .build();
+
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, pickup1))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup1.getHeading())
@@ -56,26 +58,29 @@ public class AutonomieRed extends OpMode {
                 .addPath(new BezierLine(getPick1, scorePose))
                 .setLinearHeadingInterpolation(getPick1.getHeading(), scorePose.getHeading())
                 .build();
+
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, pickup2))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup2.getHeading())
                 .build();
+
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup2, getPick2))
                 .setConstantHeadingInterpolation(pickup2.getHeading())
                 .build();
+
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(getPick2, getPick2Back))
                 .setConstantHeadingInterpolation(getPick2.getHeading())
-                .addPath(new BezierLine(getPick2, scorePose))
+                .addPath(new BezierLine(getPick2Back, scorePose)) // Corrected the jump from getPick2 to scorePose
                 .setLinearHeadingInterpolation(getPick2.getHeading(), scorePose.getHeading())
                 .build();
+
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, parkPose))
                 .setConstantHeadingInterpolation(scorePose.getHeading())
                 .build();
     }
-
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
@@ -110,8 +115,9 @@ public class AutonomieRed extends OpMode {
 
             case 3:
                 if(!follower.isBusy()){
-                    follower.setMaxPower(0.85);
+                    follower.setMaxPower(0.5);
                     follower.followPath(path3);
+                    actionTimer.resetTimer();
                     setPathState(4);
                 }
                 break;
@@ -122,26 +128,29 @@ public class AutonomieRed extends OpMode {
                     setPathState(5);
                 }
                 intakeSubsytem.setPower(1);
-                storageSubsystem.MoveToPosition(475, 1);
+                if(actionTimer.getElapsedTimeSeconds() > 1)
+                    storageSubsystem.MoveToPosition(475,1);
                 break;
 
             case 5:
                 if(!follower.isBusy()){
-                    intakeSubsytem.setPower(0);
+                    intakeSubsytem.setPower(1);
                     storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }else{
                     intakeSubsytem.setPower(1);
-                    storageSubsystem.MoveToPosition(475, 1);
+                    storageSubsystem.MoveToPosition(475,1);
                 }
                 break;
 
             case 6:
                 if(!follower.isBusy()){
                     if(storageSubsystem.autoThrow){
+                        intakeSubsytem.setPower(1);
                         storageSubsystem.ThrowAll();
                     }
                     if(!storageSubsystem.autoThrow) {
+                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path5);
                         setPathState(7);
@@ -153,8 +162,9 @@ public class AutonomieRed extends OpMode {
 
             case 7:
                 if(!follower.isBusy()){
-                    follower.setMaxPower(0.85);
+                    follower.setMaxPower(0.6);
                     follower.followPath(path6);
+                    actionTimer.resetTimer();
                     setPathState(8);
                 }
                 break;
@@ -166,7 +176,8 @@ public class AutonomieRed extends OpMode {
                     setPathState(9);
                 }
                 intakeSubsytem.setPower(1);
-                storageSubsystem.MoveToPosition(475,1);
+                if(actionTimer.getElapsedTimeSeconds() > 1)
+                    storageSubsystem.MoveToPosition(475,1);
                 break;
 
             case 9:
@@ -187,6 +198,7 @@ public class AutonomieRed extends OpMode {
                     }
                     if(!storageSubsystem.autoThrow) {
                         storageSubsystem.setServoPos(1);
+                        outtakeSubsystem.SetAngle(0);
                         follower.followPath(path8);
                         setPathState(-1);
                     }
@@ -206,7 +218,6 @@ public class AutonomieRed extends OpMode {
     public void init() {
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
-        outtakeSubsystem.AutoAngle();
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
         storageSubsystem.InitStorage();
@@ -224,6 +235,8 @@ public class AutonomieRed extends OpMode {
     @Override
     public void start() {
         pathTimer.resetTimer();
+        outtakeSubsystem.AutoAngle();
+        PoseStorage.isRed = true;
         setPathState(0);
     }
 
@@ -231,6 +244,7 @@ public class AutonomieRed extends OpMode {
     public void loop() {
         follower.update();
         autonomousPathUpdate();
+        PoseStorage.autoPose = follower.getPose();
         telemetry.addData("Path State", pathState);
         telemetry.addData("X", follower.getPose().getX());
         telemetry.addData("Y", follower.getPose().getY());

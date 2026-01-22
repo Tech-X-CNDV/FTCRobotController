@@ -27,7 +27,7 @@ public class OuttakeSubsystem {
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
-        outtakeAngle.setPosition(0.5);
+        outtakeAngle.setPosition(0);
 
         hLens.initialize();
         hLens.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
@@ -60,7 +60,11 @@ public class OuttakeSubsystem {
     }
 
     public void AutoAngle(){
-        outtakeAngle.setPosition(0.5);
+        outtakeAngle.setPosition(0.9);
+    }
+
+    public void SetAngle(double angle){
+        outtakeAngle.setPosition(angle);
     }
 
     public HuskyLens.Block[] GetCameraFeed() {

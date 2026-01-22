@@ -6,11 +6,12 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
+import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 
@@ -25,24 +26,25 @@ public class AutonomieBlue extends OpMode {
 
 //    public Outtake motorOuttake,servoPusher;
 
-    // Pose Constants for the Red Side
-    private final Pose startPose = new Pose(120.74971428571429, 126.49142857142861, Math.toRadians(-143));
-    private final Pose scorePose = new Pose(93.10171428571429, 91.78971428571427, Math.toRadians(40));
-    private final Pose pickup1 = new Pose(93.10171428571429, 78.75771428571429, Math.toRadians(0));
-    private final Pose getPick1 = new Pose(128.39428571428572, 78.75771428571429, Math.toRadians(0));
-    private final Pose pickup2 = new Pose(93.10171428571429, 55.325714285714284, Math.toRadians(0));
-    private final Pose getPick2 = new Pose(135.39657142857143, 55.325714285714284, Math.toRadians(0));
-    private final Pose getPick2Back = new Pose(128.39657142857143, 55.325714285714284, Math.toRadians(0));
-    private final Pose parkPose = new Pose(128.39428571428572, 88.75771428571429, Math.toRadians(0));
-
+    // Pose Constants for the Blue Side
+    // Pose Constants for the Blue Side
+    private final Pose startPose = new Pose(23.25028571428571, 126.49142857142861, Math.toRadians(-37));
+    private final Pose scorePose = new Pose(50.89828571428571, 91.78971428571427, Math.toRadians(140));
+    private final Pose pickup1 = new Pose(50.247907, 80.555171, Math.toRadians(180));
+    private final Pose getPick1 = new Pose(17.19257, 80.555171, Math.toRadians(180));
+    private final Pose pickup2 = new Pose(52.247907, 57.929082, Math.toRadians(180));
+    private final Pose getPick2 = new Pose(13.787869, 53.55333, Math.toRadians(180));
+    private final Pose getPick2Back = new Pose(28.60342857142857, 54.55333, Math.toRadians(180));
+    private final Pose parkPose = new Pose(20.60571428571428, 88.75771428571429, Math.toRadians(180));
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8;
 
     public void buildPaths() {
         path1 = follower.pathBuilder()
+//                .addPath(new BezierCurve(startPose, new Pose(58.5, 97.2), scorePose))
                 .addPath(new BezierLine(startPose, scorePose))
+//                .setConstantHeadingInterpolation(Math.toRadians(89))
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .build();
-
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, pickup1))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup1.getHeading())
@@ -57,34 +59,31 @@ public class AutonomieBlue extends OpMode {
                 .addPath(new BezierLine(getPick1, scorePose))
                 .setLinearHeadingInterpolation(getPick1.getHeading(), scorePose.getHeading())
                 .build();
-
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, pickup2))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup2.getHeading())
                 .build();
-
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup2, getPick2))
                 .setConstantHeadingInterpolation(pickup2.getHeading())
                 .build();
-
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(getPick2, getPick2Back))
                 .setConstantHeadingInterpolation(getPick2.getHeading())
-                .addPath(new BezierLine(getPick2Back, scorePose)) // Corrected the jump from getPick2 to scorePose
+                .addPath(new BezierLine(getPick2, scorePose))
                 .setLinearHeadingInterpolation(getPick2.getHeading(), scorePose.getHeading())
                 .build();
-
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, parkPose))
                 .setConstantHeadingInterpolation(scorePose.getHeading())
                 .build();
     }
+
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
                 follower.followPath(path1);
-                outtakeSubsystem.ToggleShootMotorAuto();
+//                outtakeSubsystem.ToggleShootMotorAuto();
                 follower.setMaxPower(0.55);
                 storageSubsystem.autoThrow = true;
                 setPathState(1);
@@ -114,8 +113,9 @@ public class AutonomieBlue extends OpMode {
 
             case 3:
                 if(!follower.isBusy()){
-                    follower.setMaxPower(0.85);
+                    follower.setMaxPower(0.5);
                     follower.followPath(path3);
+                    actionTimer.resetTimer();
                     setPathState(4);
                 }
                 break;
@@ -126,7 +126,8 @@ public class AutonomieBlue extends OpMode {
                     setPathState(5);
                 }
                 intakeSubsytem.setPower(1);
-                storageSubsystem.MoveToPosition(475, 1);
+                if(actionTimer.getElapsedTimeSeconds() > 1)
+                    storageSubsystem.MoveToPosition(475,1);
                 break;
 
             case 5:
@@ -157,8 +158,9 @@ public class AutonomieBlue extends OpMode {
 
             case 7:
                 if(!follower.isBusy()){
-                    follower.setMaxPower(0.85);
+                    follower.setMaxPower(0.6);
                     follower.followPath(path6);
+                    actionTimer.resetTimer();
                     setPathState(8);
                 }
                 break;
@@ -170,7 +172,8 @@ public class AutonomieBlue extends OpMode {
                     setPathState(9);
                 }
                 intakeSubsytem.setPower(1);
-                storageSubsystem.MoveToPosition(475,1);
+                if(actionTimer.getElapsedTimeSeconds() > 1)
+                    storageSubsystem.MoveToPosition(475,1);
                 break;
 
             case 9:
@@ -191,6 +194,7 @@ public class AutonomieBlue extends OpMode {
                     }
                     if(!storageSubsystem.autoThrow) {
                         storageSubsystem.setServoPos(1);
+                        outtakeSubsystem.SetAngle(0);
                         follower.followPath(path8);
                         setPathState(-1);
                     }
@@ -210,7 +214,6 @@ public class AutonomieBlue extends OpMode {
     public void init() {
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
-        outtakeSubsystem.AutoAngle();
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
         storageSubsystem.InitStorage();
@@ -228,6 +231,8 @@ public class AutonomieBlue extends OpMode {
     @Override
     public void start() {
         pathTimer.resetTimer();
+        outtakeSubsystem.AutoAngle();
+        PoseStorage.isRed = false;
         setPathState(0);
     }
 
@@ -235,6 +240,7 @@ public class AutonomieBlue extends OpMode {
     public void loop() {
         follower.update();
         autonomousPathUpdate();
+        PoseStorage.autoPose = follower.getPose();
         telemetry.addData("Path State", pathState);
         telemetry.addData("X", follower.getPose().getX());
         telemetry.addData("Y", follower.getPose().getY());

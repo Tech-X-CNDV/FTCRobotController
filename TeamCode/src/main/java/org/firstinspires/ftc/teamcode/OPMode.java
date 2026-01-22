@@ -17,6 +17,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
@@ -32,7 +33,6 @@ public class OPMode extends OpMode {
     private Follower follower;
     public static Pose startingPose; //See ExampleAuto to understand how to use this
     private boolean automatedDrive;
-    private Supplier<PathChain> pathChain;
     private TelemetryManager telemetryM;
     private boolean slowMode = false;
     private double slowModeMultiplier = 0.5;
@@ -47,10 +47,24 @@ public class OPMode extends OpMode {
     boolean foundPattern = false;
     char[] charPattern;
 
+    private final Pose SCORE_POSE_RED = new Pose(93.10171428571429, 91.78971428571427, Math.toRadians(40));
+    private final Pose SCORE_POSE_BLUE = new Pose(50.89828571428571, 91.78971428571427, Math.toRadians(140));
+
+    public void driveToPose(Pose targetPose) {
+        // Build the path using CURRENT position at this exact millisecond
+        PathChain dynamicPath = follower.pathBuilder()
+                .addPath(new BezierLine(follower.getPose(), targetPose))
+                .setLinearHeadingInterpolation(follower.getPose().getHeading(), targetPose.getHeading())
+                .build();
+
+        follower.followPath(dynamicPath, true);
+        automatedDrive = true;
+    }
+
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
+        follower.setStartingPose(PoseStorage.autoPose);
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
@@ -58,11 +72,6 @@ public class OPMode extends OpMode {
         for (LynxModule hub : allHubs) {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
-
-        pathChain = () -> follower.pathBuilder() //Lazy Curve Generation
-                .addPath(new Path(new BezierLine(follower::getPose, new Pose(45, 98))))
-                .setHeadingInterpolation(HeadingInterpolator.linearFromPoint(follower::getHeading, Math.toRadians(45), 0.8))
-                .build();
 
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
@@ -88,6 +97,7 @@ public class OPMode extends OpMode {
 
     private com.qualcomm.robotcore.util.ElapsedTime timer = new com.qualcomm.robotcore.util.ElapsedTime();
     private double lastTime = 0;
+    private boolean manual = false;
 
     @Override
     public void loop() {
@@ -118,16 +128,23 @@ public class OPMode extends OpMode {
                     -gamepad1.right_stick_x * slowModeMultiplier,
                     true // Robot Centric
             );
+        }else{
+            follower.update();
         }
 
         //Automated PathFollowing
-//        if (gamepad1.aWasPressed()) {
-//            follower.followPath(pathChain.get());
-//            automatedDrive = true;
-//        }
+        if (gamepad1.aWasPressed() && !automatedDrive) {
+            driveToPose(PoseStorage.isRed ? SCORE_POSE_RED : SCORE_POSE_BLUE);
+        }
+
+        double STICK_THRESHOLD = 0.15;
+
+        boolean driverInput = Math.abs(gamepad1.left_stick_x) > STICK_THRESHOLD ||
+                Math.abs(gamepad1.left_stick_y) > STICK_THRESHOLD ||
+                Math.abs(gamepad1.right_stick_x) > STICK_THRESHOLD;
 
         //Stop automated following if the follower is done
-        if (automatedDrive && (gamepad1.bWasPressed() || !follower.isBusy())) {
+        if (automatedDrive && (driverInput || !follower.isBusy())) {
             follower.startTeleopDrive();
             automatedDrive = false;
         }
@@ -137,11 +154,18 @@ public class OPMode extends OpMode {
             slowMode = !slowMode;
         }
 
-        outtakeSubsystem.OuttakeMotorControl(gamepad2.right_stick_x);
+//        outtakeSubsystem.OuttakeMotorControl(gamepad2.right_stick_x);
         if (gamepad2.dpadRightWasPressed())
             storageSubsystem.setServoPos(storageSubsystem.getServoPos() == 1 ? 0.7 : 1);
         if (gamepad2.aWasPressed())
             outtakeSubsystem.ToggleShootMotor();
+        if(gamepad2.left_trigger > 0){
+            storageSubsystem.ManualMove(gamepad2.right_stick_x * 0.4);
+            manual = true;
+        }else if(manual){
+            storageSubsystem.RestoreAuto();
+            manual = false;
+        }
 
         intakeSubsytem.setPower(gamepad1.right_trigger);
 
@@ -184,6 +208,8 @@ public class OPMode extends OpMode {
 //            foundPattern = true;
 //        }
 //
+        telemetry.addData("Robot Pos", "X: " + follower.getPose().getX() + " | Y: " + follower.getPose().getY() + " | HEADING: " + follower.getPose().getHeading());
+        telemetry.addData("automatedDrive", automatedDrive);
         if (storageSubsystem.idenColor() == 'G')
             telemetry.addData("Artifact", "Green");
         else if (storageSubsystem.idenColor() == 'P')
@@ -208,9 +234,6 @@ public class OPMode extends OpMode {
         telemetry.addData("PatternChar", charPattern);
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
-        telemetryM.debug("automatedDrive", automatedDrive);
-        telemetry.addData("Pos", follower.getPose());
-        telemetry.addData("Heading", follower.getPose().getHeading());
         telemetry.addData("Loop Time (ms)", loopTime);
     }
 }

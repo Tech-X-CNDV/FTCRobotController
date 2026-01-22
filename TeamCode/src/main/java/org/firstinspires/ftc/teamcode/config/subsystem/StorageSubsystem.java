@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.config.subsystem;
 import android.graphics.Color;
 
 import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
@@ -67,7 +68,7 @@ public class StorageSubsystem {
                 autoThrow = false;
                 return;
             }
-            if(servoTimer.seconds() > 0.9) {
+            if(servoTimer.seconds() > 1.1) {
                 MoveToPosition(475, 1);
                 turns++;
             }
@@ -124,6 +125,16 @@ public class StorageSubsystem {
             servoArunc.setPosition(0.6);
             servoTimer.reset();
         }
+    }
+
+    public void ManualMove(double power){
+        storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        storageMotor.setPower(power);
+    }
+
+    public void RestoreAuto(){
+        storageMotor.setTargetPosition(storageMotor.getCurrentPosition());
+        storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
     }
 
     public float hue;
