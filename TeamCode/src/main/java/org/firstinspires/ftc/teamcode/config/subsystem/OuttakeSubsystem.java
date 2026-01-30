@@ -43,10 +43,13 @@ public class OuttakeSubsystem {
     }
 
     public void ToggleShootMotor() {
-        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : 1);
+        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : 0.75);
     }
     public void ToggleShootMotorAuto() {
-        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : 0.7);
+        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : 1);
+    }
+    public void SetShootMotorPower(double power){
+        shootMotor.setPower(power);
     }
 
     public void IncreaseAngle(){
@@ -60,7 +63,7 @@ public class OuttakeSubsystem {
     }
 
     public void AutoAngle(){
-        outtakeAngle.setPosition(0.9);
+        outtakeAngle.setPosition(0.7);
     }
 
     public void SetAngle(double angle){

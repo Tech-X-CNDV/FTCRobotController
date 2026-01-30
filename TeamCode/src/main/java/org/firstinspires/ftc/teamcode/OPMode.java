@@ -64,7 +64,7 @@ public class OPMode extends OpMode {
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(PoseStorage.autoPose);
+        follower.setStartingPose(PoseStorage.isRed ? PoseStorage.autoPoseRed : PoseStorage.autoPoseBlue);
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
@@ -93,6 +93,7 @@ public class OPMode extends OpMode {
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)
         follower.startTeleopDrive(true);
+        outtakeSubsystem.SetAngle(0.9);
     }
 
     private com.qualcomm.robotcore.util.ElapsedTime timer = new com.qualcomm.robotcore.util.ElapsedTime();
@@ -160,6 +161,8 @@ public class OPMode extends OpMode {
         if (gamepad2.aWasPressed())
             outtakeSubsystem.ToggleShootMotor();
         if(gamepad2.left_trigger > 0){
+            if(storageSubsystem.autoThrow)
+                storageSubsystem.Abort();
             storageSubsystem.ManualMove(gamepad2.right_stick_x * 0.4);
             manual = true;
         }else if(manual){
@@ -171,7 +174,7 @@ public class OPMode extends OpMode {
 
         if (storageSubsystem.autoSort)
             storageSubsystem.PatternSortAuto(charPattern);
-        else if (storageSubsystem.autoThrow)
+        else if (!manual &&storageSubsystem.autoThrow)
             storageSubsystem.ThrowAll();
         else {
             if(gamepad2.leftBumperWasReleased())
