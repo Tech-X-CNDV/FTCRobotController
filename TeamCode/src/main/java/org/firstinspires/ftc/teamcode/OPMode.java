@@ -31,7 +31,7 @@ import java.util.function.Supplier;
 @TeleOp
 public class OPMode extends OpMode {
     private Follower follower;
-    public static Pose startingPose; //See ExampleAuto to understand how to use this
+    public static Pose startingPose; // See ExampleAuto to understand how to use this
     private boolean automatedDrive;
     private TelemetryManager telemetryM;
     private boolean slowMode = false;
@@ -40,15 +40,17 @@ public class OPMode extends OpMode {
     IntakeSubsytem intakeSubsytem;
     OuttakeSubsystem outtakeSubsystem;
     ElapsedTime runTime = new ElapsedTime();
-    String[] patterns = {" ", "GPP ", "PGP ", "PPG ", " "};
+    String[] patterns = { " ", "GPP ", "PGP ", "PPG ", " " };
     int lastColorId = 0;
     int outtakeDir = 1;
     HuskyLens.Block[] blocks;
     boolean foundPattern = false;
     char[] charPattern;
+    boolean turretLockEnabled = false;
+    int targetTagId = 7; // Default tag to track, can be adjusted
 
-    private final Pose SCORE_POSE_RED = new Pose(93.10171428571429, 91.78971428571427, Math.toRadians(40));
-    private final Pose SCORE_POSE_BLUE = new Pose(50.89828571428571, 91.78971428571427, Math.toRadians(140));
+    private final Pose SCORE_POSE_RED = new Pose(87.8480, 87.8788, Math.toRadians(40));
+    private final Pose SCORE_POSE_BLUE = new Pose(56.15201428571429, 87.87884285714283, Math.toRadians(143));
 
     public void driveToPose(Pose targetPose) {
         // Build the path using CURRENT position at this exact millisecond
@@ -73,7 +75,6 @@ public class OPMode extends OpMode {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
 
-
         storageSubsystem = new StorageSubsystem(hardwareMap);
         storageSubsystem.InitStorage();
 
@@ -83,15 +84,18 @@ public class OPMode extends OpMode {
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
 
-        telemetry.addData("Aprins", "sal");
+        telemetry.addData("Status", "Initialized");
+        storageSubsystem.colorSensingEnabled = true; // Enable color sensing for TeleOp telemetry
         telemetry.update();
     }
 
     @Override
     public void start() {
-        //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
-        //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
-        //If you don't pass anything in, it uses the default (false)
+        // The parameter controls whether the Follower should use break mode on the
+        // motors (using it is recommended).
+        // In order to use float mode, add .useBrakeModeInTeleOp(true); to your
+        // Drivetrain Constants in Constant.java (for Mecanum)
+        // If you don't pass anything in, it uses the default (false)
         follower.startTeleopDrive(true);
         outtakeSubsystem.SetAngle(0.9);
     }
@@ -99,6 +103,7 @@ public class OPMode extends OpMode {
     private com.qualcomm.robotcore.util.ElapsedTime timer = new com.qualcomm.robotcore.util.ElapsedTime();
     private double lastTime = 0;
     private boolean manual = false;
+    boolean reverseIntake = false;
 
     @Override
     public void loop() {
@@ -106,34 +111,39 @@ public class OPMode extends OpMode {
         double loopTime = currentTime - lastTime;
         lastTime = currentTime;
 
-        //Call this once per loop
+        // Store frequently accessed properties
+        Pose currentPose = follower.getPose();
+        boolean isBusy = follower.isBusy();
+
+        // Call this once per loop
         follower.update();
+        storageSubsystem.update();
         telemetryM.update();
 
         if (!automatedDrive) {
-            //Make the last parameter false for field-centric
-            //In case the drivers want to use a "slowMode" you can scale the vectors
+            // Make the last parameter false for field-centric
+            // In case the drivers want to use a "slowMode" you can scale the vectors
 
-            //This is the normal version to use in the TeleOp
-            if (!slowMode) follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
-                    -gamepad1.left_stick_x,
-                    -gamepad1.right_stick_x,
-                    true // Robot Centric
-            );
+            // This is the normal version to use in the TeleOp
+            if (!slowMode)
+                follower.setTeleOpDrive(
+                        -gamepad1.left_stick_y,
+                        -gamepad1.left_stick_x,
+                        -gamepad1.right_stick_x,
+                        true // Robot Centric
+                );
 
-                //This is how it looks with slowMode on
-            else follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y * slowModeMultiplier,
-                    -gamepad1.left_stick_x * slowModeMultiplier,
-                    -gamepad1.right_stick_x * slowModeMultiplier,
-                    true // Robot Centric
-            );
-        }else{
-            follower.update();
+            // This is how it looks with slowMode on
+            else
+                follower.setTeleOpDrive(
+                        -gamepad1.left_stick_y * slowModeMultiplier,
+                        -gamepad1.left_stick_x * slowModeMultiplier,
+                        -gamepad1.right_stick_x * slowModeMultiplier,
+                        true // Robot Centric
+                );
         }
 
-        //Automated PathFollowing
+        // Automated PathFollowing
         if (gamepad1.aWasPressed() && !automatedDrive) {
             driveToPose(PoseStorage.isRed ? SCORE_POSE_RED : SCORE_POSE_BLUE);
         }
@@ -144,99 +154,134 @@ public class OPMode extends OpMode {
                 Math.abs(gamepad1.left_stick_y) > STICK_THRESHOLD ||
                 Math.abs(gamepad1.right_stick_x) > STICK_THRESHOLD;
 
-        //Stop automated following if the follower is done
-        if (automatedDrive && (driverInput || !follower.isBusy())) {
+        // Stop automated following if the follower is done
+        if (automatedDrive && (driverInput || !isBusy)) {
             follower.startTeleopDrive();
             automatedDrive = false;
         }
 
-        //Slow Mode
+        // Slow Mode
         if (gamepad1.rightBumperWasPressed()) {
             slowMode = !slowMode;
         }
 
-//        outtakeSubsystem.OuttakeMotorControl(gamepad2.right_stick_x);
+        // outtakeSubsystem.OuttakeMotorControl(gamepad2.right_stick_x);
+        if (gamepad2.dpadDownWasPressed())
+            storageSubsystem.ResetStuck();
         if (gamepad2.dpadRightWasPressed())
             storageSubsystem.setServoPos(storageSubsystem.getServoPos() == 1 ? 0.7 : 1);
         if (gamepad2.aWasPressed())
             outtakeSubsystem.ToggleShootMotor();
-        if(gamepad2.left_trigger > 0){
-            if(storageSubsystem.autoThrow)
+
+        if (gamepad2.yWasPressed()) {
+            turretLockEnabled = !turretLockEnabled;
+            if (!turretLockEnabled)
+                outtakeSubsystem.resetTurret();
+        }
+
+        if (gamepad2.left_trigger > 0) {
+            if (storageSubsystem.autoThrow)
                 storageSubsystem.Abort();
             storageSubsystem.ManualMove(gamepad2.right_stick_x * 0.4);
             manual = true;
-        }else if(manual){
+        } else if (manual) {
             storageSubsystem.RestoreAuto();
             manual = false;
         }
 
-        intakeSubsytem.setPower(gamepad1.right_trigger);
+        if (gamepad1.yWasPressed())
+            reverseIntake = !reverseIntake;
+
+        intakeSubsytem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
 
         if (storageSubsystem.autoSort)
             storageSubsystem.PatternSortAuto(charPattern);
-        else if (!manual &&storageSubsystem.autoThrow)
+        else if (!manual && storageSubsystem.autoThrow)
             storageSubsystem.ThrowAll();
         else {
-            if(gamepad2.leftBumperWasReleased())
+            if (gamepad2.leftBumperWasReleased())
                 outtakeSubsystem.IncreaseAngle();
-            else if(gamepad2.rightBumperWasReleased())
+            else if (gamepad2.rightBumperWasReleased())
                 outtakeSubsystem.DecreaseAngle();
             if (gamepad2.bWasPressed() && foundPattern) {
                 storageSubsystem.checkTimer.reset();
                 storageSubsystem.autoSort = true;
             }
             if (gamepad2.xWasPressed()) {
-//                outtakeSubsystem.ToggleShootMotor();
+                // outtakeSubsystem.ToggleShootMotor();
                 storageSubsystem.servoTimer.reset();
                 storageSubsystem.autoThrow = true;
             }
             if (gamepad2.dpadUpWasPressed())
-                storageSubsystem.MoveToPosition(475, 1);
+                storageSubsystem.MoveRelative(475, 1);
 
             if (gamepad1.left_trigger > 0)
-                storageSubsystem.MoveToPosition(475, 1);
+                storageSubsystem.MoveRelative(475, 1);
         }
-//
-//        if (lastColorId == 0 && !foundPattern) {
-//            blocks = outtakeSubsystem.GetCameraFeed();
-//            if (blocks.length > 0 && blocks[0].id == 21) { //TODO schimba la id-ul corect
-//                lastColorId = blocks[0].id;
-//                charPattern = patterns[lastColorId].toCharArray();
-//                foundPattern = true;
-//            }
-//        }
-//
-//        if(gamepad1.dpadUpWasPressed()){
-//            charPattern = patterns[0].toCharArray();
-//            foundPattern = true;
-//        }
-//
-        telemetry.addData("Robot Pos", "X: " + follower.getPose().getX() + " | Y: " + follower.getPose().getY() + " | HEADING: " + follower.getPose().getHeading());
-        telemetry.addData("automatedDrive", automatedDrive);
+
+        if (turretLockEnabled) {
+            outtakeSubsystem.updateTurretLock(targetTagId);
+        }
+        // if (lastColorId == 0 && !foundPattern) {
+        // outtakeSubsystem.InitVision(); // Lazy init HuskyLens
+        // blocks = outtakeSubsystem.GetCameraFeed();
+        // if (blocks.length > 0 && blocks[0].id == 21) {
+        // lastColorId = blocks[0].id;
+        // charPattern = patterns[lastColorId].toCharArray();
+        // foundPattern = true;
+        // }
+        // }
+
+        if (gamepad1.dpadUpWasPressed()) {
+            charPattern = patterns[0].toCharArray();
+            foundPattern = true;
+        }
+        // --- SYSTEM STATUS ---
+        telemetry.addData(">> MODE", slowMode ? "SLOW (Multiplier: " + slowModeMultiplier + ")" : "NORMAL");
+        telemetry.addData(">> AUTOMATED", automatedDrive);
+        telemetry.addData(">> LOOP TIME (ms)", loopTime);
+
+        // --- DRIVE / POSITION ---
+        telemetry.addData("Drive X", "%.2f", currentPose.getX());
+        telemetry.addData("Drive Y", "%.2f", currentPose.getY());
+        telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
+
+        // --- INTAKE ---
+        telemetry.addData("Intake Power", (reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger));
+        telemetry.addData("Intake Reverse", reverseIntake);
+
+        // --- STORAGE ---
+        telemetry.addData("Storage Status",
+                storageSubsystem.isStuck ? "STUCK (" + storageSubsystem.recoveryState + ")" : "OK");
+        telemetry.addData("Storage AutoSort", storageSubsystem.autoSort);
+        telemetry.addData("Storage AutoThrow", storageSubsystem.autoThrow);
+        telemetry.addData("Storage Target Progress",
+                storageSubsystem.getTurns() + "/3 (" + storageSubsystem.getPos() + ")");
+        telemetry.addData("Storage Pos", storageSubsystem.getPosition());
+        telemetry.addData("Shooter Servo", storageSubsystem.getServoPos());
+
+        // --- OUTTAKE ---
+        telemetry.addData("Outtake Pos", outtakeSubsystem.getOuttakeMotorPosition());
+        telemetry.addData("Turret Lock", turretLockEnabled ? "ACTIVE (Target: " + targetTagId + ")" : "OFF");
+        telemetry.addData("Turret Target", outtakeSubsystem.getTurretTargetPos());
+        telemetry.addData("Outtake Dir", outtakeDir);
+
+        // --- SENSORS & PATTERN ---
         if (storageSubsystem.idenColor() == 'G')
-            telemetry.addData("Artifact", "Green");
+            telemetry.addData("Detected Artifact", "GREEN");
         else if (storageSubsystem.idenColor() == 'P')
-            telemetry.addData("Artifact", "Purple");
+            telemetry.addData("Detected Artifact", "PURPLE");
         else
-            telemetry.addData("Artifact", "None");
-        telemetry.addData("Hue", storageSubsystem.hue);
-        telemetry.addData("Sat", storageSubsystem.sat);
-        telemetry.addData("runTime", runTime.seconds());
-        telemetry.addData("AutoSorting", storageSubsystem.autoSort);
-        telemetry.addData("AutoThrowing", storageSubsystem.autoThrow);
-        telemetry.addData("ServoTimer", storageSubsystem.servoTimer.seconds());
-        telemetry.addData("Turns", storageSubsystem.getTurns());
-        telemetry.addData("Pos", storageSubsystem.getPos());
-        telemetry.addData("Power", storageSubsystem.getPower());
-        telemetry.addData("EncoderStorage", storageSubsystem.getPosition());
-        telemetry.addData("StorageIsBusy", storageSubsystem.isBusy());
-        telemetry.addData("EncoderOuttake", outtakeSubsystem.getOuttakeMotorPosition());
-        telemetry.addData("OuttakeDir", outtakeDir);
-        telemetry.addData("ShooterServo", storageSubsystem.getServoPos());
-        telemetry.addData("Id", lastColorId + " " + patterns[lastColorId]);
-        telemetry.addData("PatternChar", charPattern);
-        telemetryM.debug("position", follower.getPose());
+            telemetry.addData("Detected Artifact", "NONE");
+
+        telemetry.addData("Hue/Sat", "%.2f / %.2f", storageSubsystem.hue, storageSubsystem.sat);
+        telemetry.addData("Pattern", patterns[lastColorId] + " (ID: " + lastColorId + ")");
+        if (foundPattern)
+            telemetry.addData("Active Pattern Char", String.valueOf(charPattern));
+
+        // --- DEBUG / MISC ---
+        telemetry.addData("Runtime", "%.1f s", runTime.seconds());
+        telemetryM.debug("position", currentPose);
         telemetryM.debug("velocity", follower.getVelocity());
-        telemetry.addData("Loop Time (ms)", loopTime);
     }
 }

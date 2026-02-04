@@ -16,7 +16,7 @@ public class IntakeSubsytem {
         intakeMotor.setPower(0);
     }
 
-    public void setPower(float power) {
+    public void setPower(double power) {
         intakeMotor.setPower(power);
     }
 

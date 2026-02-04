@@ -15,6 +15,23 @@ public class StorageSubsystem {
     private final ColorSensor colorSensor;
     private final Servo servoArunc;
 
+    public static double STUCK_VELOCITY_THRESHOLD = 50.0; // ticks per second
+    public static double STUCK_TIMEOUT_MS = 500.0; // 500ms before considering it stuck
+
+    private final ElapsedTime stuckTimer = new ElapsedTime();
+    public boolean isStuck = false;
+
+    public enum RecoveryState {
+        IDLE,
+        RETURNING,
+        RETRYING
+    }
+
+    public RecoveryState recoveryState = RecoveryState.IDLE;
+    private int lastMoveStartPos = 0;
+    private int lastMoveTargetPos = 0;
+    private double lastMovePower = 0;
+
     public StorageSubsystem(HardwareMap hardwareMap) {
         storageMotor = hardwareMap.get(DcMotorEx.class, "StorageMotor");
         colorSensor = hardwareMap.get(ColorSensor.class, "ColorS");
@@ -30,8 +47,8 @@ public class StorageSubsystem {
         PIDFCoefficients defaultVelocityPID = storageMotor.getPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER);
         double Kp_velocity = defaultVelocityPID.p * 0.66; // Reduce Kpv to make it less aggressive
         double Ki_velocity = 0.0;
-        double Kd_velocity = 2.0;                       // CRITICAL: Damping term for high inertia
-        double Kf_velocity = defaultVelocityPID.f;      // Retain the manufacturer's Feedforward
+        double Kd_velocity = 2.0; // CRITICAL: Damping term for high inertia
+        double Kf_velocity = defaultVelocityPID.f; // Retain the manufacturer's Feedforward
 
         storageMotor.setVelocityPIDFCoefficients(Kp_velocity, Ki_velocity, Kd_velocity, Kf_velocity);
         storageMotor.setTargetPosition(0);
@@ -41,25 +58,22 @@ public class StorageSubsystem {
     }
 
     public void MoveToPosition(int target, double power) {
-        if (storageMotor.isBusy())
+        if (isBusy())
             return;
         servoArunc.setPosition(1);
-        storageMotor.setTargetPosition(storageMotor.getCurrentPosition() + target);
-        storageMotor.setPower(power);
+        setTarget(storageMotor.getCurrentPosition() + target, power);
     }
 
     private int lastTarget = 0;
 
     public void MoveRelative(int delta, double power) {
         // If the motor is still busy moving to the previous increment, wait.
-        if (storageMotor.isBusy()) return;
+        if (isBusy())
+            return;
 
         // We only increment if the code explicitly asks for a NEW movement
         servoArunc.setPosition(1);
-        int newTarget = storageMotor.getCurrentPosition() + delta;
-        storageMotor.setTargetPosition(newTarget);
-        storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        storageMotor.setPower(power);
+        setTarget(storageMotor.getCurrentPosition() + delta, power);
     }
 
     public boolean autoThrow = false;
@@ -67,104 +81,61 @@ public class StorageSubsystem {
     private int throwState = 0;
     private int turns = 0;
 
-//    public void ThrowAll() {
-//        switch (throwState) {
-//            case 0: // Phase 1: Fire the flicker
-//                // Wait for indexer to stop moving before firing
-//                if (!storageMotor.isBusy()) {
-//                    servoArunc.setPosition(0.6);
-//                    servoTimer.reset();
-//                    throwState = 1;
-//                }
-//                break;
-//
-//            case 1: // Phase 2: Retract the flicker
-//                if (servoTimer.seconds() > 0.4) {
-//                    servoArunc.setPosition(1.0);
-//                    servoTimer.reset();
-//                    throwState = 2;
-//                }
-//                break;
-//
-//            case 2: // Phase 3: Move indexer to next ball
-//                if (servoTimer.seconds() > 0.2) {
-//                    turns++;
-//                    if (turns >= 3) {
-//                        // Sequence Complete after 3 shots
-//                        turns = 0;
-//                        throwState = 0;
-//                        autoThrow = false;
-//                    } else {
-//                        // Not done yet? Shift indexer 475 ticks for the next ball
-//                        int newTarget = storageMotor.getCurrentPosition() + 475;
-//                        storageMotor.setTargetPosition(newTarget);
-//                        storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-//                        storageMotor.setPower(1.0);
-//                        throwState = 0; // Loop back to Case 0 (Wait for motor, then fire)
-//                    }
-//                }
-//                break;
-//        }
-//    }
-public void ThrowAll() {
-    switch (throwState) {
-        case 0: // PHASE 1: FIRE
-            // Ensure indexer is dead-still before firing to prevent jams
-            if (!storageMotor.isBusy()) {
-                servoArunc.setPosition(0.6);
-                servoTimer.reset();
-                throwState = 1;
-            }
-            break;
-
-        case 1: // PHASE 2: RETRACT & INDEX SIMULTANEOUSLY
-            // Adjusted to 0.32s to give the Axon time to complete the full 0.6 arc
-            if (servoTimer.seconds() > 0.32) {
-                servoArunc.setPosition(1.0); // Start returning to home
-
-                turns++;
-                if (turns >= 3) {
-                    turns = 0;
-                    throwState = 2; // Move to wrap-up
-                } else {
-                    // SPEED GAIN: We start the next ball move immediately.
-                    // The servo retracts while the motor is already bringing the next ball up.
-                    int newTarget = storageMotor.getCurrentPosition() + 475;
-                    storageMotor.setTargetPosition(newTarget);
-                    storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                    storageMotor.setPower(1.0);
-
-                    throwState = 0; // Jump back to Case 0 to wait for the next ball to arrive
+    public void ThrowAll() {
+        switch (throwState) {
+            case 0: // PHASE 1: FIRE
+                // Ensure indexer is dead-still before firing to prevent jams
+                if (!isBusy()) {
+                    servoArunc.setPosition(0.6);
+                    servoTimer.reset();
+                    throwState = 1;
                 }
-            }
-            break;
+                break;
 
-        case 2: // PHASE 3: WRAP UP
-            // Final safety delay to ensure the flicker is home before ending the auto sequence
-            if (servoTimer.seconds() > 0.2) {
-                autoThrow = false;
-                throwState = 0;
-            }
-            break;
+            case 1: // PHASE 2: RETRACT & INDEX SIMULTANEOUSLY
+                // Adjusted to 0.32s to give the Axon time to complete the full 0.6 arc
+                if (servoTimer.seconds() > 0.32) {
+                    servoArunc.setPosition(1.0); // Start returning to home
+
+                    turns++;
+                    if (turns >= 3) {
+                        turns = 0;
+                        throwState = 2; // Move to wrap-up
+                    } else {
+                        // SPEED GAIN: We start the next ball move immediately.
+                        // The servo retracts while the motor is already bringing the next ball up.
+                        setTarget(storageMotor.getCurrentPosition() + 475, 1.0);
+
+                        throwState = 0; // Jump back to Case 0 to wait for the next ball to arrive
+                    }
+                }
+                break;
+
+            case 2: // PHASE 3: WRAP UP
+                // Final safety delay to ensure the flicker is home before ending the auto
+                // sequence
+                if (servoTimer.seconds() > 0.2) {
+                    autoThrow = false;
+                    throwState = 0;
+                }
+                break;
+        }
     }
-}
 
     int pos = 0;
     public ElapsedTime checkTimer = new ElapsedTime();
     public ElapsedTime servoTimer = new ElapsedTime();
     boolean isMoving = false;
     public boolean autoSort = false;
-    int add = 1;
 
     public void PatternSortAuto(char[] pattern) {
-        if (storageMotor.isBusy()) {
+        if (isBusy()) {
             isMoving = true;
             return;
         }
 
         if (isMoving) {
             checkTimer.reset();
-            add = 1;
             isMoving = false;
         }
         if (checkTimer.seconds() > 2 && servoTimer.seconds() > 1) {
@@ -197,10 +168,67 @@ public void ThrowAll() {
         }
     }
 
+    public void update() {
+        updateWatchdog();
+        updateRecovery();
+        if (autoSort || colorSensingEnabled) {
+            updateColor();
+        }
+    }
+
+    private void updateWatchdog() {
+        if (storageMotor.isBusy() && !isStuck && recoveryState == RecoveryState.IDLE) {
+            // Check velocity (ticks/second)
+            if (Math.abs(storageMotor.getVelocity()) < STUCK_VELOCITY_THRESHOLD) {
+                if (stuckTimer.milliseconds() > STUCK_TIMEOUT_MS) {
+                    isStuck = true;
+                    // Trigger Recovery
+                    recoveryState = RecoveryState.RETURNING;
+                    storageMotor.setTargetPosition(lastMoveStartPos);
+                    storageMotor.setPower(lastMovePower);
+                }
+            } else {
+                stuckTimer.reset();
+            }
+        } else {
+            stuckTimer.reset();
+        }
+    }
+
+    private void updateRecovery() {
+        if (recoveryState == RecoveryState.RETURNING) {
+            if (!storageMotor.isBusy()) {
+                recoveryState = RecoveryState.RETRYING;
+                storageMotor.setTargetPosition(lastMoveTargetPos);
+                storageMotor.setPower(lastMovePower);
+            }
+        } else if (recoveryState == RecoveryState.RETRYING) {
+            if (!storageMotor.isBusy()) {
+                recoveryState = RecoveryState.IDLE;
+                isStuck = false;
+            }
+        }
+    }
+
+    private void setTarget(int target, double power) {
+        lastMoveStartPos = storageMotor.getCurrentPosition();
+        lastMoveTargetPos = target;
+        lastMovePower = power;
+        recoveryState = RecoveryState.IDLE;
+        isStuck = false;
+
+        storageMotor.setTargetPosition(target);
+        storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        storageMotor.setPower(power);
+    }
+
     public void Abort() {
-        autoThrow = false;      // Stop the ThrowAll loop
-        throwState = 0;         // Reset the state machine to start
-        turns = 0;              // Reset ball count
+        autoThrow = false; // Stop the ThrowAll loop
+        autoSort = false; // Stop the PatternSortAuto loop
+        throwState = 0; // Reset the state machine to start
+        turns = 0; // Reset ball count
+        recoveryState = RecoveryState.IDLE;
+        isStuck = false;
         servoArunc.setPosition(1.0); // Reset flicker to home
 
         // Kill motor movement and lock it at current position
@@ -209,30 +237,41 @@ public void ThrowAll() {
         storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
     }
 
-    public void ManualMove(double power){
+    public void ResetStuck() {
+        isStuck = false;
+        stuckTimer.reset();
+    }
+
+    public void ManualMove(double power) {
         storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         storageMotor.setPower(power);
     }
 
-    public void RestoreAuto(){
+    public void RestoreAuto() {
         storageMotor.setTargetPosition(storageMotor.getCurrentPosition());
         storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
     }
 
     public float hue;
     public float sat;
+    public boolean colorSensingEnabled = false;
+    private final float[] hsvValues = new float[3];
+    private char cachedColor = 'N';
 
-    public char idenColor() {
-        float[] hsvValues = new float[3];
+    private void updateColor() {
         Color.RGBToHSV(colorSensor.red() * 8, colorSensor.green() * 8, colorSensor.blue() * 8, hsvValues);
         hue = hsvValues[0];
         sat = hsvValues[1];
         if (sat < 0.35)
-            return 'P';
+            cachedColor = 'P';
         else if (hue > 120 && hue < 150)
-            return 'G';
+            cachedColor = 'G';
         else
-            return 'N';
+            cachedColor = 'N';
+    }
+
+    public char idenColor() {
+        return cachedColor;
     }
 
     public void setServoPos(double target) {
@@ -260,6 +299,6 @@ public void ThrowAll() {
     }
 
     public boolean isBusy() {
-        return storageMotor.isBusy();
+        return storageMotor.isBusy() || recoveryState != RecoveryState.IDLE;
     }
 }

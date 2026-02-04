@@ -15,8 +15,9 @@ import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "AutoRed")
-public class AutonomieRed extends OpMode {
+
+@Autonomous(name = "AutoRedPartial")
+public class AutoRedPartial extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer;
     private int pathState;
@@ -41,7 +42,7 @@ public class AutonomieRed extends OpMode {
 
     // Pickup 3
     private final Pose pickup3 = new Pose(97.4890, 34.2580, Math.toRadians(0));
-    private final Pose getPick3 = new Pose(134.4422, 33.2580, Math.toRadians(0));
+    private final Pose getPick3 = new Pose(134.1922, 33.2580, Math.toRadians(0));
 
     // Parking
     private final Pose parkPose = new Pose(123.3943, 88.7577, Math.toRadians(40));
@@ -121,7 +122,7 @@ public class AutonomieRed extends OpMode {
 
     boolean canTurn = true;
 
-    public void autonomousPathUpdate(boolean isBusy, Pose currentPose) {
+    public void autonomousPathUpdate() {
         switch (pathState) {
             case 0: // Move to Preload Score
                 follower.followPath(path1);
@@ -132,7 +133,7 @@ public class AutonomieRed extends OpMode {
                 break;
 
             case 1: // SHOOTING: Preload
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     if (storageSubsystem.autoThrow) {
                         outtakeSubsystem.SetShootMotorPower(0.65);
                         storageSubsystem.ThrowAll();
@@ -146,14 +147,14 @@ public class AutonomieRed extends OpMode {
 
             // ================= PICKUP 1 SEQUENCE =================
             case 2: // ALIGN to Pickup 1 (Path 2)
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     follower.followPath(path2); // Correctly call alignment path
                     setPathState(3);
                 }
                 break;
 
             case 3: // STAB/INTAKE 1 (Path 3)
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     follower.setMaxPower(0.9);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path3);
@@ -162,30 +163,30 @@ public class AutonomieRed extends OpMode {
                 break;
 
             case 4: // RETURN to Score 1 (Path 4)
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     follower.setMaxPower(1.0);
                     follower.followPath(path4);
                     setPathState(5);
                 }
                 // Delayed Conveyor during stab
-                // if (pathTimer.getElapsedTimeSeconds() > 0.2) {
+//                if (pathTimer.getElapsedTimeSeconds() > 0.2) {
                 storageSubsystem.MoveRelative(475, 1);
-                // }
+//                }
                 break;
 
             case 5: // ARRIVED Score 1
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }
                 // Secure intake during travel
-                if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
+                if(pathTimer.getElapsedTimeSeconds() < 0.5 && follower.isBusy())
                     storageSubsystem.MoveRelative(475, 1);
                 break;
 
             case 6: // SHOOTING 1
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
@@ -198,7 +199,7 @@ public class AutonomieRed extends OpMode {
 
             // ================= PICKUP 2 SEQUENCE =================
             case 7: // STAB/INTAKE 2 (Path 6)
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     follower.setMaxPower(0.9);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path6);
@@ -207,41 +208,41 @@ public class AutonomieRed extends OpMode {
                 break;
 
             case 8: // RETURN Score 2 (Path 7 - Bezier)
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     follower.setMaxPower(1.0);
                     follower.followPath(path7);
                     setPathState(9);
                 }
-                // if (pathTimer.getElapsedTimeSeconds() > 0.1) {
+//                if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                 storageSubsystem.MoveRelative(475, 1);
-                // }
+//                }
                 break;
 
             case 9: // ARRIVED Score 2
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(10);
                 }
-                if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
+                if(pathTimer.getElapsedTimeSeconds() < 0.5 && follower.isBusy())
                     storageSubsystem.MoveRelative(475, 1);
                 break;
 
             case 10: // SHOOTING 2
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
                         storageSubsystem.setServoPos(1);
-                        follower.followPath(path9); // Align to Pickup 3
-                        setPathState(11);
+                        follower.followPath(path8); // Park
+                        setPathState(15);
                     }
                 }
                 break;
 
             // ================= PICKUP 3 SEQUENCE =================
             case 11: // STAB/INTAKE 3 (Path 10)
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     follower.setMaxPower(1);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path10);
@@ -250,7 +251,7 @@ public class AutonomieRed extends OpMode {
                 break;
 
             case 12: // RETURN Score 3 (Path 11)
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     follower.setMaxPower(1.0);
                     follower.followPath(path11);
                     setPathState(13);
@@ -258,22 +259,22 @@ public class AutonomieRed extends OpMode {
                 if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                     storageSubsystem.MoveRelative(475, 1);
                 }
-                // if(pathTimer.getElapsedTimeSeconds() > 4)
-                // intakeSubsytem.setPower(0);
+//                if(pathTimer.getElapsedTimeSeconds() > 4)
+//                    intakeSubsytem.setPower(0);
                 break;
 
             case 13: // ARRIVED Score 3
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(14);
                 }
-                if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
+                if(pathTimer.getElapsedTimeSeconds() < 0.5 && follower.isBusy())
                     storageSubsystem.MoveRelative(475, 1);
                 break;
 
             case 14: // SHOOTING 3
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
@@ -285,7 +286,7 @@ public class AutonomieRed extends OpMode {
                 break;
 
             case 15: // PARK COMPLETION
-                if (!isBusy) {
+                if (!follower.isBusy()) {
                     setPathState(-1);
                 }
                 break;
@@ -325,31 +326,19 @@ public class AutonomieRed extends OpMode {
 
     @Override
     public void loop() {
-        boolean isBusy = follower.isBusy();
-        Pose currentPose = follower.getPose();
-
         follower.update();
-        storageSubsystem.update();
-        autonomousPathUpdate(isBusy, currentPose);
-        PoseStorage.autoPoseRed = currentPose;
-        // --- AUTO STATUS ---
-        telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
-
-        // --- DRIVE / POSITION ---
-        telemetry.addData("Drive X", "%.2f", currentPose.getX());
-        telemetry.addData("Drive Y", "%.2f", currentPose.getY());
-        telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
-
-        // --- STORAGE & SUBSYSTEMS ---
-        telemetry.addData("Storage Status",
-                storageSubsystem.isStuck ? "STUCK (" + storageSubsystem.recoveryState + ")" : "OK");
-        telemetry.addData("AutoThrow Active", storageSubsystem.autoThrow);
-
+        autonomousPathUpdate();
+        PoseStorage.autoPoseRed = follower.getPose();
+        telemetry.addData("Path State", pathState);
+        telemetry.addData("PathTimer", pathTimer.getElapsedTimeSeconds());
+        telemetry.addData("X", follower.getPose().getX());
+        telemetry.addData("Y", follower.getPose().getY());
+        telemetry.addData("AutoThrow", storageSubsystem.autoThrow);
         telemetry.update();
     }
 
     @Override
-    public void stop() {
+    public void stop(){
         PoseStorage.autoPoseRed = follower.getPose();
     }
 }
