@@ -4,12 +4,15 @@ import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 public class OuttakeSubsystem {
     private final HuskyLens hLens;
     private final DcMotorEx outtakeMotor, shootMotor;
     private final Servo outtakeAngle;
+    private final VoltageSensor voltageSensor;
 
+    public static double NOMINAL_VOLTAGE = 13.2;
     public static double TICKS_PER_DEGREE = 7.78; // Approximate, adjust as needed
     public static int MAX_TURRET_ANGLE_DEG = 90;
     public static double HUSKYLENS_FOV_DEG = 60.0;
@@ -20,6 +23,7 @@ public class OuttakeSubsystem {
         shootMotor = hardwareMap.get(DcMotorEx.class, "ShootMotor");
         outtakeAngle = hardwareMap.get(Servo.class, "outtakeAngle");
         hLens = hardwareMap.get(HuskyLens.class, "hLens");
+        voltageSensor = hardwareMap.voltageSensor.iterator().next();
     }
 
     private boolean huskyLensInitialized = false;
@@ -54,15 +58,23 @@ public class OuttakeSubsystem {
             outtakeMotor.setPower(0);
     }
 
+    public double getVoltageCompensatedPower(double basePower) {
+        double currentVoltage = voltageSensor.getVoltage();
+        if (currentVoltage < 1.0)
+            currentVoltage = NOMINAL_VOLTAGE; // Safety
+        return basePower * (NOMINAL_VOLTAGE / currentVoltage);
+    }
+
     public void ToggleShootMotor() {
-        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : 0.75);
+        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : getVoltageCompensatedPower(0.75));
     }
 
     public void ToggleShootMotorAuto() {
-        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : 1);
+        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : getVoltageCompensatedPower(1.0));
     }
 
     public void SetShootMotorPower(double power) {
+//        shootMotor.setPower(getVoltageCompensatedPower(power));
         shootMotor.setPower(power);
     }
 

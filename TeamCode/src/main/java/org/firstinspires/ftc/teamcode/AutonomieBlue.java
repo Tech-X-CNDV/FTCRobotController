@@ -30,18 +30,18 @@ public class AutonomieBlue extends OpMode {
 
     // Pickup 1
     private final Pose pickup1 = new Pose(46.5110334, 80.3317188, -3.08578);
-    private final Pose getPick1 = new Pose(14.598908, 80.3317188, -3.08578);
+    private final Pose getPick1 = new Pose(14.008908, 80.3317188, -3.08578);
     private final Pose posGate = new Pose(25.452620, 80.272503, -3.08578);
-    private final Pose openGate = new Pose(16, 73.0695589, -3.08578);
+    private final Pose openGate = new Pose(15.7, 73.0695589, -3.08578);
 
     // Pickup 2
     private final Pose pickup2 = new Pose(46.5110334, 56.334464, -3.10931);
-    private final Pose getPick2 = new Pose(9.047059, 56.334464, -3.10931);
+    private final Pose getPick2 = new Pose(7.847059, 56.334464, -3.10931);
     private final Pose getPick2Back = new Pose(30.0, 55.929082, Math.toRadians(190)); // Pulled back ~13 inches
 
     // Pickup 3
     private final Pose pickup3 = new Pose(46.5110334, 32.558042, -3.10931);
-    private final Pose getPick3 = new Pose(8.507840, 32.558042, -3.10931);
+    private final Pose getPick3 = new Pose(7.87840, 32.558042, -3.10931);
 
     // Parking
     private final Pose parkPose = new Pose(20.60571428571428, 88.75771428571429, Math.toRadians(141));
@@ -119,8 +119,6 @@ public class AutonomieBlue extends OpMode {
                 .build();
     }
 
-    boolean canTurn = true;
-
     public void autonomousPathUpdate(boolean isBusy, Pose currentPose) {
         switch (pathState) {
             case 0: // Move to Preload Score
@@ -167,7 +165,6 @@ public class AutonomieBlue extends OpMode {
                 break;
             case 5: // ARRIVED Score 1
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }
@@ -180,6 +177,7 @@ public class AutonomieBlue extends OpMode {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
+                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path5); // Align to Pickup 2
                         setPathState(7);
@@ -205,7 +203,6 @@ public class AutonomieBlue extends OpMode {
                 break;
             case 9: // ARRIVED Score 2
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(10);
                 }
@@ -217,6 +214,7 @@ public class AutonomieBlue extends OpMode {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
+                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path9); // Align to Pickup 3
                         setPathState(11);
@@ -244,7 +242,6 @@ public class AutonomieBlue extends OpMode {
                 break;
             case 13: // ARRIVED Score 3
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(14);
                 }
@@ -256,7 +253,9 @@ public class AutonomieBlue extends OpMode {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
+                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
+                        outtakeSubsystem.ToggleShootMotorAuto();
                         follower.followPath(path8); // Park
                         setPathState(15);
                     }
@@ -310,6 +309,10 @@ public class AutonomieBlue extends OpMode {
         storageSubsystem.update();
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseBlue = currentPose;
+
+        if (storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.WAITING_FOR_RETRY
+                || storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.RETURNING)
+            intakeSubsytem.setPower(1);
         // --- AUTO STATUS ---
         telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
 
@@ -328,6 +331,6 @@ public class AutonomieBlue extends OpMode {
 
     @Override
     public void stop() {
-        PoseStorage.autoPoseRed = follower.getPose();
+        PoseStorage.autoPoseBlue = follower.getPose();
     }
 }

@@ -26,10 +26,12 @@ public class AutoMic extends OpMode {
 //    public Outtake motorOuttake,servoPusher;
 
     // Pose Constants for the Blue Side
-    private final Pose startPose = new Pose(61.504000000000005, 8.987428571428612, Math.toRadians(90));
-    private final Pose scorePose = new Pose(34.843428571428575, 9.668571428571402, Math.toRadians(90));
+    private final Pose startPose = new Pose(82.89828571428572, 9.152000000000037, Math.toRadians(90));
+    private final Pose scorePose = new Pose(85.89571428571428, 23.147714285714294, Math.toRadians(67.5));
+    private final Pose parkPose = new Pose(108.17028571428573, 10.630857142857149, Math.toRadians(0));
 
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8;
+    boolean turned = false;
 
     public void buildPaths() {
         path1 = follower.pathBuilder()
@@ -38,14 +40,76 @@ public class AutoMic extends OpMode {
 //                .setConstantHeadingInterpolation(Math.toRadians(89))
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .build();
+        path2 = follower.pathBuilder()
+//                .addPath(new BezierCurve(startPose, new Pose(58.5, 97.2), scorePose))
+                .addPath(new BezierLine(scorePose, parkPose))
+//                .setConstantHeadingInterpolation(Math.toRadians(89))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
+                .build();
     }
 
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
+                if(pathTimer.getElapsedTimeSeconds() > 13)
+                    outtakeSubsystem.SetShootMotorPower(1);
+                if(pathTimer.getElapsedTimeSeconds() > 18)
+                    setPathState(1);
+                break;
+            case 1:
+                outtakeSubsystem.SetAngle(0.7);
+                outtakeSubsystem.SetShootMotorPower(1);
                 follower.followPath(path1);
-                follower.setMaxPower(0.7);
-                setPathState(-1);
+                follower.setMaxPower(0.9);
+                setPathState(2);
+                break;
+            case 2:
+                outtakeSubsystem.SetShootMotorPower(1);
+                if(!follower.isBusy()) {
+                    if (pathTimer.getElapsedTimeSeconds() > 0.8) {
+                        storageSubsystem.setServoPos(0.6);
+                        setPathState(3);
+                    }
+                }
+                else {
+                        pathTimer.resetTimer();
+                    }
+                break;
+            case 3:
+                outtakeSubsystem.SetShootMotorPower(1);
+                if(pathTimer.getElapsedTimeSeconds() > 0.5)
+                    storageSubsystem.setServoPos(1);
+                if(pathTimer.getElapsedTimeSeconds() > 1 && !turned){
+                    storageSubsystem.MoveRelative(475, 1);
+                    turned = true;
+                    }
+                if(pathTimer.getElapsedTimeSeconds() > 1.5 && !storageSubsystem.isBusy()){
+                    storageSubsystem.setServoPos(0.6);
+                    turned = false;
+                    setPathState(4);
+                }
+                break;
+            case 4:
+                outtakeSubsystem.SetShootMotorPower(1);
+                if(pathTimer.getElapsedTimeSeconds() > 0.5)
+                    storageSubsystem.setServoPos(1);
+                if(pathTimer.getElapsedTimeSeconds() > 1 && !turned) {
+                    storageSubsystem.MoveRelative(475, 1);
+                    turned = true;
+                }
+                if(pathTimer.getElapsedTimeSeconds() > 1.5 && !storageSubsystem.isBusy()){
+                    storageSubsystem.setServoPos(0.6);
+                    turned = false;
+                    setPathState(5);
+                }
+                break;
+            case 5:
+                if(pathTimer.getElapsedTimeSeconds() > 1) {
+                    storageSubsystem.setServoPos(1);
+                    outtakeSubsystem.ToggleShootMotorAuto();
+                    follower.followPath(path2);
+                    setPathState(-1);
+                }
                 break;
         }
     }
@@ -84,6 +148,7 @@ public class AutoMic extends OpMode {
         follower.update();
         autonomousPathUpdate();
         telemetry.addData("Path State", pathState);
+        telemetry.addData("isBusy", follower.isBusy());
         telemetry.addData("X", follower.getPose().getX());
         telemetry.addData("Y", follower.getPose().getY());
         telemetry.addData("AutoThrow", storageSubsystem.autoThrow);

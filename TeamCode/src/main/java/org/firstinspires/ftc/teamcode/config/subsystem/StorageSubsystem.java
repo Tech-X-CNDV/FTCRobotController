@@ -17,13 +17,16 @@ public class StorageSubsystem {
 
     public static double STUCK_VELOCITY_THRESHOLD = 50.0; // ticks per second
     public static double STUCK_TIMEOUT_MS = 500.0; // 500ms before considering it stuck
+    public static double RECOVERY_DELAY_MS = 250.0; // 250ms wait before retrying
 
     private final ElapsedTime stuckTimer = new ElapsedTime();
+    private final ElapsedTime recoveryTimer = new ElapsedTime();
     public boolean isStuck = false;
 
     public enum RecoveryState {
         IDLE,
         RETURNING,
+        WAITING_FOR_RETRY,
         RETRYING
     }
 
@@ -42,12 +45,12 @@ public class StorageSubsystem {
         storageMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         storageMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         storageMotor.setPower(0);
-        storageMotor.setPositionPIDFCoefficients(47);
+        storageMotor.setPositionPIDFCoefficients(40);
 
         PIDFCoefficients defaultVelocityPID = storageMotor.getPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        double Kp_velocity = defaultVelocityPID.p * 0.66; // Reduce Kpv to make it less aggressive
+        double Kp_velocity = defaultVelocityPID.p * 0.60; // Reduce Kpv to make it less aggressive
         double Ki_velocity = 0.0;
-        double Kd_velocity = 2.0; // CRITICAL: Damping term for high inertia
+        double Kd_velocity = 3; // CRITICAL: Damping term for high inertia
         double Kf_velocity = defaultVelocityPID.f; // Retain the manufacturer's Feedforward
 
         storageMotor.setVelocityPIDFCoefficients(Kp_velocity, Ki_velocity, Kd_velocity, Kf_velocity);
@@ -55,6 +58,10 @@ public class StorageSubsystem {
         storageMotor.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
         servoArunc.setPosition(1);
+    }
+
+    public double ReturnVelocity() {
+        return storageMotor.getVelocity();
     }
 
     public void MoveToPosition(int target, double power) {
@@ -178,6 +185,14 @@ public class StorageSubsystem {
 
     private void updateWatchdog() {
         if (storageMotor.isBusy() && !isStuck && recoveryState == RecoveryState.IDLE) {
+            // Safety Check: If we are very close to the target, ignore velocity.
+            // This prevents false positives when the motor is settling/vibrating at the
+            // target.
+            if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) < 50) {
+                stuckTimer.reset();
+                return;
+            }
+
             // Check velocity (ticks/second)
             if (Math.abs(storageMotor.getVelocity()) < STUCK_VELOCITY_THRESHOLD) {
                 if (stuckTimer.milliseconds() > STUCK_TIMEOUT_MS) {
@@ -198,6 +213,11 @@ public class StorageSubsystem {
     private void updateRecovery() {
         if (recoveryState == RecoveryState.RETURNING) {
             if (!storageMotor.isBusy()) {
+                recoveryState = RecoveryState.WAITING_FOR_RETRY;
+                recoveryTimer.reset();
+            }
+        } else if (recoveryState == RecoveryState.WAITING_FOR_RETRY) {
+            if (recoveryTimer.milliseconds() > RECOVERY_DELAY_MS) {
                 recoveryState = RecoveryState.RETRYING;
                 storageMotor.setTargetPosition(lastMoveTargetPos);
                 storageMotor.setPower(lastMovePower);
@@ -299,6 +319,11 @@ public class StorageSubsystem {
     }
 
     public boolean isBusy() {
-        return storageMotor.isBusy() || recoveryState != RecoveryState.IDLE;
+        // If we are in a recovery state, we are definitely busy.
+        if (recoveryState != RecoveryState.IDLE)
+            return true;
+
+        // Otherwise, check the motor.
+        return storageMotor.isBusy();
     }
 }

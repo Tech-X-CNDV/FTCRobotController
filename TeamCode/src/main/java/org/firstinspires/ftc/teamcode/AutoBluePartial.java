@@ -15,7 +15,6 @@ import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-
 @Autonomous(name = "AutoBluePartial")
 public class AutoBluePartial extends OpMode {
     private Follower follower;
@@ -40,13 +39,9 @@ public class AutoBluePartial extends OpMode {
     private final Pose getPick2 = new Pose(9.047059, 56.334464, -3.10931);
     private final Pose getPick2Back = new Pose(30.0, 55.929082, Math.toRadians(190)); // Pulled back ~13 inches
 
-    // Pickup 3
-    private final Pose pickup3 = new Pose(46.5110334, 32.558042, -3.10931);
-    private final Pose getPick3 = new Pose(8.807840, 32.558042, -3.10931);
-
     // Parking
     private final Pose parkPose = new Pose(20.60571428571428, 88.75771428571429, Math.toRadians(141));
-    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11;
+    private PathChain path1, path2, path3, path4, path5, path6, path7, path8;
 
     public void buildPaths() {
         // path1: Start to Preload Score
@@ -95,24 +90,6 @@ public class AutoBluePartial extends OpMode {
                 .setLinearHeadingInterpolation(getPick2.getHeading(), scorePose.getHeading())
                 .build();
 
-        // path9: Score to Pickup 3 Alignment
-        path9 = follower.pathBuilder()
-                .addPath(new BezierLine(scorePose, pickup3))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3.getHeading())
-                .build();
-
-        // path10: Intake Reach 3
-        path10 = follower.pathBuilder()
-                .addPath(new BezierLine(pickup3, getPick3))
-                .setConstantHeadingInterpolation(getPick3.getHeading())
-                .build();
-
-        // path11: Return to Score 3 (Direct)
-        path11 = follower.pathBuilder()
-                .addPath(new BezierLine(getPick3, scorePose))
-                .setLinearHeadingInterpolation(getPick3.getHeading(), scorePose.getHeading())
-                .build();
-
         // path8: Final Park
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, parkPose))
@@ -120,9 +97,7 @@ public class AutoBluePartial extends OpMode {
                 .build();
     }
 
-    boolean canTurn = true;
-
-    public void autonomousPathUpdate() {
+    public void autonomousPathUpdate(boolean isBusy, Pose currentPose) {
         switch (pathState) {
             case 0: // Move to Preload Score
                 follower.followPath(path1);
@@ -133,7 +108,7 @@ public class AutoBluePartial extends OpMode {
                 break;
 
             case 1: // SHOOTING: Preload
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
                         outtakeSubsystem.SetShootMotorPower(0.65);
                         storageSubsystem.ThrowAll();
@@ -147,14 +122,14 @@ public class AutoBluePartial extends OpMode {
 
             // ================= PICKUP 1 SEQUENCE =================
             case 2: // ALIGN to Pickup 1 (Path 2)
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     follower.followPath(path2); // Correctly call alignment path
                     setPathState(3);
                 }
                 break;
 
             case 3: // STAB/INTAKE 1 (Path 3)
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     follower.setMaxPower(0.9);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path3);
@@ -163,30 +138,30 @@ public class AutoBluePartial extends OpMode {
                 break;
 
             case 4: // RETURN to Score 1 (Path 4)
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     follower.setMaxPower(1.0);
                     follower.followPath(path4);
                     setPathState(5);
                 }
                 // Delayed Conveyor during stab
-//                if (pathTimer.getElapsedTimeSeconds() > 0.2) {
+                // if (pathTimer.getElapsedTimeSeconds() > 0.2) {
                 storageSubsystem.MoveRelative(475, 1);
-//                }
+                // }
                 break;
 
             case 5: // ARRIVED Score 1
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }
                 // Secure intake during travel
-                if(pathTimer.getElapsedTimeSeconds() < 0.5 && follower.isBusy())
+                if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
                     storageSubsystem.MoveRelative(475, 1);
                 break;
 
             case 6: // SHOOTING 1
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
@@ -199,7 +174,7 @@ public class AutoBluePartial extends OpMode {
 
             // ================= PICKUP 2 SEQUENCE =================
             case 7: // STAB/INTAKE 2 (Path 6)
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     follower.setMaxPower(0.9);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path6);
@@ -208,28 +183,28 @@ public class AutoBluePartial extends OpMode {
                 break;
 
             case 8: // RETURN Score 2 (Path 7 - Bezier)
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     follower.setMaxPower(1.0);
                     follower.followPath(path7);
                     setPathState(9);
                 }
-//                if (pathTimer.getElapsedTimeSeconds() > 0.1) {
+                // if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                 storageSubsystem.MoveRelative(475, 1);
-//                }
+                // }
                 break;
 
             case 9: // ARRIVED Score 2
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(10);
                 }
-                if(pathTimer.getElapsedTimeSeconds() < 0.5 && follower.isBusy())
+                if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
                     storageSubsystem.MoveRelative(475, 1);
                 break;
 
             case 10: // SHOOTING 2
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
@@ -239,54 +214,8 @@ public class AutoBluePartial extends OpMode {
                     }
                 }
                 break;
-
-            // ================= PICKUP 3 SEQUENCE =================
-            case 11: // STAB/INTAKE 3 (Path 10)
-                if (!follower.isBusy()) {
-                    follower.setMaxPower(1);
-                    intakeSubsytem.setPower(1);
-                    follower.followPath(path10);
-                    setPathState(12);
-                }
-                break;
-
-            case 12: // RETURN Score 3 (Path 11)
-                if (!follower.isBusy()) {
-                    follower.setMaxPower(1.0);
-                    follower.followPath(path11);
-                    setPathState(13);
-                }
-                if (pathTimer.getElapsedTimeSeconds() > 0.1) {
-                    storageSubsystem.MoveRelative(475, 1);
-                }
-//                if(pathTimer.getElapsedTimeSeconds() > 4)
-//                    intakeSubsytem.setPower(0);
-                break;
-
-            case 13: // ARRIVED Score 3
-                if (!follower.isBusy()) {
-                    intakeSubsytem.setPower(0);
-                    storageSubsystem.autoThrow = true;
-                    setPathState(14);
-                }
-                if(pathTimer.getElapsedTimeSeconds() < 0.5 && follower.isBusy())
-                    storageSubsystem.MoveRelative(475, 1);
-                break;
-
-            case 14: // SHOOTING 3
-                if (!follower.isBusy()) {
-                    if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
-                    } else {
-                        storageSubsystem.setServoPos(1);
-                        follower.followPath(path8); // Park
-                        setPathState(15);
-                    }
-                }
-                break;
-
             case 15: // PARK COMPLETION
-                if (!follower.isBusy()) {
+                if (!isBusy) {
                     setPathState(-1);
                 }
                 break;
@@ -326,19 +255,31 @@ public class AutoBluePartial extends OpMode {
 
     @Override
     public void loop() {
+        boolean isBusy = follower.isBusy();
+        Pose currentPose = follower.getPose();
+
         follower.update();
-        autonomousPathUpdate();
-        PoseStorage.autoPoseBlue = follower.getPose();
-        telemetry.addData("Path State", pathState);
-        telemetry.addData("PathTimer", pathTimer.getElapsedTimeSeconds());
-        telemetry.addData("X", follower.getPose().getX());
-        telemetry.addData("Y", follower.getPose().getY());
-        telemetry.addData("AutoThrow", storageSubsystem.autoThrow);
+        storageSubsystem.update();
+        autonomousPathUpdate(isBusy, currentPose);
+        PoseStorage.autoPoseBlue = currentPose;
+        // --- AUTO STATUS ---
+        telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
+
+        // --- DRIVE / POSITION ---
+        telemetry.addData("Drive X", "%.2f", currentPose.getX());
+        telemetry.addData("Drive Y", "%.2f", currentPose.getY());
+        telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
+
+        // --- STORAGE & SUBSYSTEMS ---
+        telemetry.addData("Storage Status",
+                storageSubsystem.isStuck ? "STUCK (" + storageSubsystem.recoveryState + ")" : "OK");
+        telemetry.addData("AutoThrow Active", storageSubsystem.autoThrow);
+
         telemetry.update();
     }
 
     @Override
-    public void stop(){
-        PoseStorage.autoPoseRed = follower.getPose();
+    public void stop() {
+        PoseStorage.autoPoseBlue = follower.getPose();
     }
 }

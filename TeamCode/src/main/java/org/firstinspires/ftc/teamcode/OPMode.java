@@ -6,15 +6,10 @@ import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.HeadingInterpolator;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
-import com.qualcomm.hardware.dfrobot.HuskyLens;
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
@@ -25,13 +20,11 @@ import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 @Configurable
 @TeleOp
 public class OPMode extends OpMode {
     private Follower follower;
-    public static Pose startingPose; // See ExampleAuto to understand how to use this
     private boolean automatedDrive;
     private TelemetryManager telemetryM;
     private boolean slowMode = false;
@@ -43,7 +36,6 @@ public class OPMode extends OpMode {
     String[] patterns = { " ", "GPP ", "PGP ", "PPG ", " " };
     int lastColorId = 0;
     int outtakeDir = 1;
-    HuskyLens.Block[] blocks;
     boolean foundPattern = false;
     char[] charPattern;
     boolean turretLockEnabled = false;
@@ -113,7 +105,6 @@ public class OPMode extends OpMode {
 
         // Store frequently accessed properties
         Pose currentPose = follower.getPose();
-        boolean isBusy = follower.isBusy();
 
         // Call this once per loop
         follower.update();
@@ -155,7 +146,7 @@ public class OPMode extends OpMode {
                 Math.abs(gamepad1.right_stick_x) > STICK_THRESHOLD;
 
         // Stop automated following if the follower is done
-        if (automatedDrive && (driverInput || !isBusy)) {
+        if (automatedDrive && (driverInput || !follower.isBusy())) {
             follower.startTeleopDrive();
             automatedDrive = false;
         }
@@ -164,6 +155,11 @@ public class OPMode extends OpMode {
         if (gamepad1.rightBumperWasPressed()) {
             slowMode = !slowMode;
         }
+
+        if(storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.WAITING_FOR_RETRY || storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.RETURNING)
+            intakeSubsytem.setPower(1);
+        else
+            intakeSubsytem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
 
         // outtakeSubsystem.OuttakeMotorControl(gamepad2.right_stick_x);
         if (gamepad2.dpadDownWasPressed())
@@ -192,7 +188,6 @@ public class OPMode extends OpMode {
         if (gamepad1.yWasPressed())
             reverseIntake = !reverseIntake;
 
-        intakeSubsytem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
 
         if (storageSubsystem.autoSort)
             storageSubsystem.PatternSortAuto(charPattern);
@@ -238,7 +233,7 @@ public class OPMode extends OpMode {
         }
         // --- SYSTEM STATUS ---
         telemetry.addData(">> MODE", slowMode ? "SLOW (Multiplier: " + slowModeMultiplier + ")" : "NORMAL");
-        telemetry.addData(">> AUTOMATED", automatedDrive);
+        telemetry.addData(">> AUTOMATED : isBusy?", automatedDrive + " : " + follower.isBusy());
         telemetry.addData(">> LOOP TIME (ms)", loopTime);
 
         // --- DRIVE / POSITION ---
@@ -253,6 +248,7 @@ public class OPMode extends OpMode {
         // --- STORAGE ---
         telemetry.addData("Storage Status",
                 storageSubsystem.isStuck ? "STUCK (" + storageSubsystem.recoveryState + ")" : "OK");
+        telemetry.addData("StorageVelocity", storageSubsystem.ReturnVelocity());
         telemetry.addData("Storage AutoSort", storageSubsystem.autoSort);
         telemetry.addData("Storage AutoThrow", storageSubsystem.autoThrow);
         telemetry.addData("Storage Target Progress",

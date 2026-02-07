@@ -30,18 +30,18 @@ public class AutonomieRed extends OpMode {
 
     // Pickup 1
     private final Pose pickup1 = new Pose(97.4890, 81.3317, Math.toRadians(0));
-    private final Pose getPick1 = new Pose(129.4011, 81.3317, Math.toRadians(0));
+    private final Pose getPick1 = new Pose(129.9011, 81.3317, Math.toRadians(0));
     private final Pose posGate = new Pose(116.5474, 81.2725, Math.toRadians(0));
     private final Pose openGate = new Pose(127.9, 73.0696, Math.toRadians(0));
 
     // Pickup 2
     private final Pose pickup2 = new Pose(97.4890, 57.445, Math.toRadians(0));
-    private final Pose getPick2 = new Pose(134.9029, 55.5345, Math.toRadians(0));
+    private final Pose getPick2 = new Pose(136.0029, 55.5345, Math.toRadians(0));
     private final Pose getPick2Back = new Pose(114.0, 55.9291, Math.toRadians(0));
 
     // Pickup 3
     private final Pose pickup3 = new Pose(97.4890, 34.2580, Math.toRadians(0));
-    private final Pose getPick3 = new Pose(134.4422, 33.2580, Math.toRadians(0));
+    private final Pose getPick3 = new Pose(136.00422, 33.2580, Math.toRadians(0));
 
     // Parking
     private final Pose parkPose = new Pose(123.3943, 88.7577, Math.toRadians(40));
@@ -119,8 +119,6 @@ public class AutonomieRed extends OpMode {
                 .build();
     }
 
-    boolean canTurn = true;
-
     public void autonomousPathUpdate(boolean isBusy, Pose currentPose) {
         switch (pathState) {
             case 0: // Move to Preload Score
@@ -167,15 +165,11 @@ public class AutonomieRed extends OpMode {
                     follower.followPath(path4);
                     setPathState(5);
                 }
-                // Delayed Conveyor during stab
-                // if (pathTimer.getElapsedTimeSeconds() > 0.2) {
                 storageSubsystem.MoveRelative(475, 1);
-                // }
                 break;
 
             case 5: // ARRIVED Score 1
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }
@@ -189,6 +183,7 @@ public class AutonomieRed extends OpMode {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
+                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path5); // Align to Pickup 2
                         setPathState(7);
@@ -212,14 +207,11 @@ public class AutonomieRed extends OpMode {
                     follower.followPath(path7);
                     setPathState(9);
                 }
-                // if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                 storageSubsystem.MoveRelative(475, 1);
-                // }
                 break;
 
             case 9: // ARRIVED Score 2
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(10);
                 }
@@ -232,6 +224,7 @@ public class AutonomieRed extends OpMode {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
+                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path9); // Align to Pickup 3
                         setPathState(11);
@@ -258,13 +251,10 @@ public class AutonomieRed extends OpMode {
                 if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                     storageSubsystem.MoveRelative(475, 1);
                 }
-                // if(pathTimer.getElapsedTimeSeconds() > 4)
-                // intakeSubsytem.setPower(0);
                 break;
 
             case 13: // ARRIVED Score 3
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(14);
                 }
@@ -277,6 +267,7 @@ public class AutonomieRed extends OpMode {
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
+                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path8); // Park
                         setPathState(15);
@@ -332,6 +323,10 @@ public class AutonomieRed extends OpMode {
         storageSubsystem.update();
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseRed = currentPose;
+
+        if (storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.WAITING_FOR_RETRY
+                || storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.RETURNING)
+            intakeSubsytem.setPower(1);
         // --- AUTO STATUS ---
         telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
 
