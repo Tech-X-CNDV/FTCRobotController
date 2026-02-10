@@ -21,6 +21,17 @@ If you are a driver, programmer, or coach, please refer to these guides for setu
     - **CRITICAL**: Use this to calibrate the Smart Flywheel slope/offset.
     - Instructions for adjusting PID gains, turret safe-limits, and HuskyLens FOV.
 
+## ⚡ Quick Access (Main Files)
+
+| Component | File Link |
+| :--- | :--- |
+| **Main TeleOp** | [`OPMode.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/OPMode.java) |
+| **Main Auto (Blue)** | [`AutonomieBlue.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieBlue.java) |
+| **Main Auto (Red)** | [`AutonomieRed.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieRed.java) |
+| **Intake Subsystem** | [`IntakeSubsytem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/IntakeSubsytem.java) |
+| **Storage Subsystem** | [`StorageSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/StorageSubsystem.java) |
+| **Outtake Subsystem** | [`OuttakeSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/OuttakeSubsystem.java) |
+
 ## 🛠 Tech Stack
 
 - **[PedroPathing](https://pedropathing.com/)**: Advanced path generation and following.
