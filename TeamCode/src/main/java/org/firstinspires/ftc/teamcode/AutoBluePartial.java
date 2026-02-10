@@ -110,7 +110,6 @@ public class AutoBluePartial extends OpMode {
             case 1: // SHOOTING: Preload
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        outtakeSubsystem.SetShootMotorPower(0.65);
                         storageSubsystem.ThrowAll();
                     } else {
                         storageSubsystem.setServoPos(1);
@@ -249,6 +248,7 @@ public class AutoBluePartial extends OpMode {
     public void start() {
         pathTimer.resetTimer();
         outtakeSubsystem.AutoAngle();
+        outtakeSubsystem.SetAutoAim(true); // Always rely on dynamic power
         PoseStorage.isRed = false;
         setPathState(0);
     }
@@ -260,6 +260,7 @@ public class AutoBluePartial extends OpMode {
 
         follower.update();
         storageSubsystem.update();
+        outtakeSubsystem.update();
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseBlue = currentPose;
         // --- AUTO STATUS ---
@@ -270,10 +271,10 @@ public class AutoBluePartial extends OpMode {
         telemetry.addData("Drive Y", "%.2f", currentPose.getY());
         telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
 
-        // --- STORAGE & SUBSYSTEMS ---
-        telemetry.addData("Storage Status",
-                storageSubsystem.isStuck ? "STUCK (" + storageSubsystem.recoveryState + ")" : "OK");
-        telemetry.addData("AutoThrow Active", storageSubsystem.autoThrow);
+        // --- SUBSYSTEMS TELEMETRY ---
+        intakeSubsytem.displayTelemetry(telemetry);
+        storageSubsystem.displayTelemetry(telemetry);
+        outtakeSubsystem.displayTelemetry(telemetry);
 
         telemetry.update();
     }

@@ -2,6 +2,9 @@
 
 This document provides an overview of the robot's software architecture, control schemes, and autonomous logic.
 
+> [!NOTE]
+> For detailed instructions on calibrating the vision and motor constants, see the [TUNING_GUIDE.md](TUNING_GUIDE.md).
+
 ## 1. TeleOp: `OPMode.java`
 
 The main TeleOp program handles driver input and coordinates subsystems.
@@ -13,13 +16,14 @@ The main TeleOp program handles driver input and coordinates subsystems.
 - **Right Trigger**: Intake power.
 - **Y Button**: Toggle **Reverse Intake**.
 - **A Button**: Automated **Drive to Score Pose**.
+- **X Button**: Toggle **Chassis Tag-Lock & Auto-Aim** (Synced rotation and flywheel power).
 - **Left Trigger**: Conveyor move relative (475 ticks).
 - **DPad Up**: Force set pattern to default.
 
 ### Controller 2 (Outtake & Storage)
 - **A Button**: Toggle Shoot Motor.
 - **X Button**: Auto-Throw sequence (clears storage).
-- **Y Button**: Toggle **Turret Tag Lock** (AprilTag tracking).
+- **Y Button**: Toggle **Turret Lock & Auto-Aim Flywheel** (Vision tracking).
 - **B Button**: Start **Auto-Sort** (if pattern detected).
 - **DPad Up**: Manual conveyor move (475 ticks).
 - **DPad Down**: Reset Storage (if stuck).
@@ -37,7 +41,7 @@ These OpModes use a state machine and **PedroPathing** for precise movement.
 1.  **State 0-1**: Score Preload.
 2.  **State 2-6**: Alignment, pickup, and score Sequence 1.
 3.  **State 7-10**: Alignment, pickup, and score Sequence 2.
-4.  **State 11-14**: Alignment, pickup, and score Sequence 3.
+4.  **State 11-14**: Alignment, pickup, and score Sequence 3 (Main OpModes only).
 5.  **State 15**: Park in designated zone.
 
 ### Features
@@ -48,7 +52,10 @@ These OpModes use a state machine and **PedroPathing** for precise movement.
 
 ## 3. Key Subsystems
 - **Storage**: Features an auto-jam detection (Watchdog) and recovery system.
-- **Outtake**: Includes a motorized turret with ±90° limits and AprilTag tracking using HuskyLens.
+- **Outtake**: 
+    - **Turret**: ±90° limits and AprilTag tracking.
+    - **Smart Flywheel**: Continuous voltage compensation (13.2V baseline) and distance-adaptive power via HuskyLens.
+    - **Chassis Lock**: Automated robot orientation toward target tags during TeleOp.
 - **Intake**: Simple motorized intake with reverse capability.
 
 ## 4. Calibration Constants

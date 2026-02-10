@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class StorageSubsystem {
     private final DcMotorEx storageMotor;
@@ -325,5 +326,23 @@ public class StorageSubsystem {
 
         // Otherwise, check the motor.
         return storageMotor.isBusy();
+    }
+
+    public void displayTelemetry(Telemetry telemetry) {
+        telemetry.addData("  Storage Status", isStuck ? "STUCK (" + recoveryState + ")" : "OK");
+        telemetry.addData("  Storage Velocity", ReturnVelocity());
+        telemetry.addData("Storage AutoSort", autoSort);
+        telemetry.addData("Storage AutoThrow", autoThrow);
+        telemetry.addData("Storage Target Progress", turns + "/3 (" + pos + ")");
+        telemetry.addData("Storage Pos", getPosition());
+        telemetry.addData("Shooter Servo", getServoPos());
+
+        char color = idenColor();
+        String colorStr = "NONE";
+        if (color == 'G')
+            colorStr = "GREEN";
+        else if (color == 'P')
+            colorStr = "PURPLE";
+        telemetry.addData("Detected Artifact", colorStr);
     }
 }

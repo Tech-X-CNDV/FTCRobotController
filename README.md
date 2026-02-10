@@ -1,3 +1,35 @@
+# Tech-X #19101 - Robot Controller
+
+Welcome to the official robot controller repository for FTC Team **Tech-X #19101**. This codebase is designed for high-performance automation, precision vision tracking, and robust subsystem management.
+
+## 🚀 Key Software Features
+
+- **Smart Flywheel**: Real-time voltage compensation and distance-adaptive power mapping using HuskyLens AprilTag detection.
+- **Chassis Tag-Lock**: Automatic robot orientation towards targets with driver-maintained translational control.
+- **Turret Auto-Aim**: Dynamic turret tracking for consistent scoring from multiple angles.
+- **Storage Watchdog**: Intelligent jam detection and automatic recovery for the indexing subsystem.
+- **Decoupled Telemetry**: Professional, grouped debug data optimized for both Driver and Operator stations.
+
+## 📖 Useful Documentation
+
+If you are a driver, programmer, or coach, please refer to these guides for setup and calibration:
+
+1.  **[Software Architecture & Controls](OPMODE_DOCS.md)**
+    - Detailed breakdown of TeleOp control schemes (Gamepad 1 & 2).
+    - Overview of Autonomous state machines and path-following logic.
+2.  **[Tuning & Calibration Guide](TUNING_GUIDE.md)**
+    - **CRITICAL**: Use this to calibrate the Smart Flywheel slope/offset.
+    - Instructions for adjusting PID gains, turret safe-limits, and HuskyLens FOV.
+
+## 🛠 Tech Stack
+
+- **[PedroPathing](https://pedropathing.com/)**: Advanced path generation and following.
+- **[HuskyLens](https://github.com/HuskyLens/HuskyLensJava)**: AI vision sensor for AprilTag recognition.
+- **FTC SDK**: Standard FIRST Tech Challenge robot controller framework.
+
+---
+*Built with ❤️ by Team Tech-X #19101*
+
 ## NOTICE
 
 This repository contains the public FTC SDK for the DECODE (2025-2026) competition season.

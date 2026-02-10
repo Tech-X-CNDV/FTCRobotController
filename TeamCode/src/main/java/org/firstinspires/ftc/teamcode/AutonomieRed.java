@@ -24,7 +24,7 @@ public class AutonomieRed extends OpMode {
     StorageSubsystem storageSubsystem;
     IntakeSubsytem intakeSubsytem;
 
-    // Pose Constants for the Red Side (Horizontal Mirror with Global Headings)
+    // Pose Constants for the Red Side
     private final Pose startPose = new Pose(120.7497, 126.4914, Math.toRadians(40));
     private final Pose scorePose = new Pose(87.8480, 87.8788, Math.toRadians(40));
 
@@ -132,7 +132,6 @@ public class AutonomieRed extends OpMode {
             case 1: // SHOOTING: Preload
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        outtakeSubsystem.SetShootMotorPower(0.65);
                         storageSubsystem.ThrowAll();
                     } else {
                         storageSubsystem.setServoPos(1);
@@ -310,6 +309,7 @@ public class AutonomieRed extends OpMode {
     public void start() {
         pathTimer.resetTimer();
         outtakeSubsystem.AutoAngle();
+        outtakeSubsystem.SetAutoAim(true); // Always rely on dynamic power
         PoseStorage.isRed = true;
         setPathState(0);
     }
@@ -321,6 +321,7 @@ public class AutonomieRed extends OpMode {
 
         follower.update();
         storageSubsystem.update();
+        outtakeSubsystem.update();
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseRed = currentPose;
 
@@ -335,10 +336,10 @@ public class AutonomieRed extends OpMode {
         telemetry.addData("Drive Y", "%.2f", currentPose.getY());
         telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
 
-        // --- STORAGE & SUBSYSTEMS ---
-        telemetry.addData("Storage Status",
-                storageSubsystem.isStuck ? "STUCK (" + storageSubsystem.recoveryState + ")" : "OK");
-        telemetry.addData("AutoThrow Active", storageSubsystem.autoThrow);
+        // --- SUBSYSTEMS TELEMETRY ---
+        intakeSubsytem.displayTelemetry(telemetry);
+        storageSubsystem.displayTelemetry(telemetry);
+        outtakeSubsystem.displayTelemetry(telemetry);
 
         telemetry.update();
     }

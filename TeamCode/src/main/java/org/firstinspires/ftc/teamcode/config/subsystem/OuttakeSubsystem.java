@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class OuttakeSubsystem {
     private final HuskyLens hLens;
@@ -17,6 +18,21 @@ public class OuttakeSubsystem {
     public static int MAX_TURRET_ANGLE_DEG = 90;
     public static double HUSKYLENS_FOV_DEG = 60.0;
     private int turretTargetPos = 0;
+    private double targetBasePower = 0;
+    private boolean autoAimEnabled = false;
+    private boolean shootMotorEnabled = false;
+    private int lastTagWidth = 0;
+    private double lastTagError = 0;
+    private double compensatedPower = 0;
+
+    // TODO: Tune these mapping constants based on physical testing
+    public static double DIST_POWER_SLOPE = -0.005;
+    public static double DIST_POWER_OFFSET = 1.2;
+    public static double DEFAULT_SHOOT_POWER = 0.75;
+    public static double TURRET_TRACKING_POWER = 0.6;
+    public static double TURRET_RESET_POWER = 0.5;
+    public static double INITIAL_ANGLE = 0.9;
+    public static int TARGET_TAG_ID = 1; // Default tag to aim at
 
     public OuttakeSubsystem(HardwareMap hardwareMap) {
         outtakeMotor = hardwareMap.get(DcMotorEx.class, "OuttakeMotor");
@@ -35,6 +51,8 @@ public class OuttakeSubsystem {
         outtakeMotor.setTargetPosition(0);
         outtakeMotor.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
         outtakeMotor.setPower(0);
+
+        targetBasePower = DEFAULT_SHOOT_POWER;
 
         shootMotor.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
@@ -58,24 +76,65 @@ public class OuttakeSubsystem {
             outtakeMotor.setPower(0);
     }
 
-    public double getVoltageCompensatedPower(double basePower) {
+    public void update() {
+        if (autoAimEnabled) {
+            updateAutoAimPower();
+        }
+
         double currentVoltage = voltageSensor.getVoltage();
         if (currentVoltage < 1.0)
-            currentVoltage = NOMINAL_VOLTAGE; // Safety
-        return basePower * (NOMINAL_VOLTAGE / currentVoltage);
+            currentVoltage = NOMINAL_VOLTAGE;
+
+        compensatedPower = targetBasePower * (NOMINAL_VOLTAGE / currentVoltage);
+        shootMotor.setPower(shootMotorEnabled ? compensatedPower : 0);
+    }
+
+    private void updateAutoAimPower() {
+        HuskyLens.Block[] blocks = hLens.blocks();
+        lastTagWidth = 0; // Reset if no tag is found in this update cycle
+        for (HuskyLens.Block block : blocks) {
+            if (block.id == TARGET_TAG_ID) {
+                // Using width as a simple proxy for distance
+                // Larger width = closer = lower power
+                // Smaller width = further = higher power
+                targetBasePower = (block.width * DIST_POWER_SLOPE) + DIST_POWER_OFFSET;
+                lastTagWidth = block.width;
+
+                // Clamp power between reasonable safe limits
+                if (targetBasePower > 1.0)
+                    targetBasePower = 1.0;
+                if (targetBasePower < 0.4)
+                    targetBasePower = 0.4;
+                return;
+            }
+        }
+    }
+
+    public void SetAutoAim(boolean enabled) {
+        this.autoAimEnabled = enabled;
+        if (enabled)
+            InitVision();
+    }
+
+    public boolean isAutoAimEnabled() {
+        return autoAimEnabled;
     }
 
     public void ToggleShootMotor() {
-        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : getVoltageCompensatedPower(0.75));
+        shootMotorEnabled = !shootMotorEnabled;
     }
 
     public void ToggleShootMotorAuto() {
-        shootMotor.setPower(shootMotor.getPower() > 0 ? 0 : getVoltageCompensatedPower(1.0));
+        shootMotorEnabled = !shootMotorEnabled;
     }
 
     public void SetShootMotorPower(double power) {
-//        shootMotor.setPower(getVoltageCompensatedPower(power));
-        shootMotor.setPower(power);
+        targetBasePower = power;
+        shootMotorEnabled = (power > 0);
+    }
+
+    public double getTargetBasePower() {
+        return targetBasePower;
     }
 
     public void IncreaseAngle() {
@@ -98,6 +157,22 @@ public class OuttakeSubsystem {
 
     public HuskyLens.Block[] GetCameraFeed() {
         return hLens.blocks();
+    }
+
+    public double getTagCenterError(int targetTagId) {
+        InitVision();
+        HuskyLens.Block[] blocks = hLens.blocks();
+        for (HuskyLens.Block block : blocks) {
+            if (block.id == targetTagId) {
+                // Error in pixels from center (320x240 resolution)
+                double errorPixels = block.x - 160;
+                // Convert pixel error to angular error (approximate)
+                lastTagError = errorPixels * (HUSKYLENS_FOV_DEG / 320.0);
+                return lastTagError;
+            }
+        }
+        lastTagError = 0;
+        return 0; // Not found or no error
     }
 
     public void updateTurretLock(int targetTagId) {
@@ -132,13 +207,13 @@ public class OuttakeSubsystem {
         }
 
         outtakeMotor.setTargetPosition(found ? turretTargetPos : outtakeMotor.getTargetPosition());
-        outtakeMotor.setPower(0.6); // Reasonable power for tracking
+        outtakeMotor.setPower(TURRET_TRACKING_POWER);
     }
 
     public void resetTurret() {
         turretTargetPos = 0;
         outtakeMotor.setTargetPosition(0);
-        outtakeMotor.setPower(0.5);
+        outtakeMotor.setPower(TURRET_RESET_POWER);
     }
 
     public int getOuttakeMotorPosition() {
@@ -147,5 +222,30 @@ public class OuttakeSubsystem {
 
     public int getTurretTargetPos() {
         return turretTargetPos;
+    }
+
+    public int getLastTagWidth() {
+        return lastTagWidth;
+    }
+
+    public double getLastTagError() {
+        return lastTagError;
+    }
+
+    public double getCompensatedPower() {
+        return compensatedPower;
+    }
+
+    public void displayTelemetry(Telemetry telemetry) {
+        telemetry.addData("  Outtake Pos", getOuttakeMotorPosition());
+        // Note: For Turret Lock and Auto Aim status, we'll keep the logic in OPMode for
+        // now
+        // as they use local boolean flags (turretLockEnabled, chassisLockEnabled).
+        // However, we can show the core subsystem data here.
+        telemetry.addData("Target Base Power", "%.2f", getTargetBasePower());
+        telemetry.addData("Compensated Power", "%.2f", getCompensatedPower());
+        telemetry.addData("Tag Width", getLastTagWidth());
+        telemetry.addData("Tag Error", "%.2f", getLastTagError());
+        telemetry.addData("Turret Target", getTurretTargetPos());
     }
 }

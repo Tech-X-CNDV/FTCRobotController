@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.config.subsystem;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class IntakeSubsytem {
     public final DcMotorEx intakeMotor;
@@ -22,5 +23,9 @@ public class IntakeSubsytem {
 
     public double getPower() {
         return intakeMotor.getPower();
+    }
+
+    public void displayTelemetry(Telemetry telemetry) {
+        telemetry.addData("  Intake Power", intakeMotor.getPower());
     }
 }
