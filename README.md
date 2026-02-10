@@ -1,6 +1,14 @@
-# Tech-X #19101 - Robot Controller
-
-Welcome to the official robot controller repository for FTC Team **Tech-X #19101**. This codebase is designed for high-performance automation, precision vision tracking, and robust subsystem management.
+<table>
+  <tr>
+    <td>
+      <h1>Tech-X #19101 - Robot Controller</h1>
+      Welcome to the official robot controller repository for FTC Team <b>Tech-X #19101</b>. This codebase is designed for high-performance automation, precision vision tracking, and robust subsystem management.
+    </td>
+    <td>
+      <img src="LOGO_TX.jpeg" alt="Tech-X #19101 Logo" width="200">
+    </td>
+  </tr>
+</table>
 
 ## 🚀 Key Software Features
 
