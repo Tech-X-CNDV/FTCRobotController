@@ -65,18 +65,18 @@ public class StorageSubsystem {
         return storageMotor.getVelocity();
     }
 
-    public void MoveToPosition(int target, double power) {
-        if (isBusy())
-            return;
-        servoArunc.setPosition(1);
-        setTarget(storageMotor.getCurrentPosition() + target, power);
-    }
-
     private int lastTarget = 0;
 
     public void MoveRelative(int delta, double power) {
-        // If the motor is still busy moving to the previous increment, wait.
-        if (isBusy())
+        // OVERRIDE: If the user clicks, they want movement. Cancel any stuck recovery.
+        if (isStuck || recoveryState != RecoveryState.IDLE) {
+            ResetStuck();
+        }
+
+        // TOLERANCE: Allow a new move if we are within 50 ticks of the target.
+        // This prevents "dead zones" where the motor hasn't quite settled.
+        if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) > 5
+                && storageMotor.isBusy())
             return;
 
         // We only increment if the code explicitly asks for a NEW movement
@@ -147,7 +147,7 @@ public class StorageSubsystem {
             isMoving = false;
         }
         if (checkTimer.seconds() > 2 && servoTimer.seconds() > 1) {
-            MoveToPosition(475, 1);
+            MoveRelative(475, 1);
             turns++;
             checkTimer.reset(); // Reset AFTER starting the move
         }
@@ -185,7 +185,9 @@ public class StorageSubsystem {
     }
 
     private void updateWatchdog() {
-        if (storageMotor.isBusy() && !isStuck && recoveryState == RecoveryState.IDLE) {
+        // MONITOR IN ALL ACTIVE STATES: Idle, Returning, or Retrying.
+        // If it jams during a recovery phase, we need to know!
+        if (storageMotor.isBusy() && !isStuck) {
             // Safety Check: If we are very close to the target, ignore velocity.
             // This prevents false positives when the motor is settling/vibrating at the
             // target.

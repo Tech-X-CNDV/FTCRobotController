@@ -1,2 +1,3 @@
+rootProject.name = 'Decode'
 include ':FtcRobotController'
 include ':TeamCode'

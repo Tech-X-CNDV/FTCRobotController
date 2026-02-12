@@ -309,8 +309,9 @@ public class AutonomieRed extends OpMode {
     public void start() {
         pathTimer.resetTimer();
         outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetAutoAim(true); // Always rely on dynamic power
+        outtakeSubsystem.SetShootMotorPower(OuttakeSubsystem.AUTO_SHOOT_POWER);
         PoseStorage.isRed = true;
+        PoseStorage.allianceOffset = 0;
         setPathState(0);
     }
 
@@ -322,6 +323,7 @@ public class AutonomieRed extends OpMode {
         follower.update();
         storageSubsystem.update();
         outtakeSubsystem.update();
+        outtakeSubsystem.updateStaticPower(); // Keep voltage compensation active
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseRed = currentPose;
 

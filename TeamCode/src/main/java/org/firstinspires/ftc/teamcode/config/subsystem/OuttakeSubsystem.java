@@ -11,28 +11,38 @@ public class OuttakeSubsystem {
     private final HuskyLens hLens;
     private final DcMotorEx outtakeMotor, shootMotor;
     private final Servo outtakeAngle;
-    private final VoltageSensor voltageSensor;
 
-    public static double NOMINAL_VOLTAGE = 13.2;
-    public static double TICKS_PER_DEGREE = 7.78; // Approximate, adjust as needed
+    public static double DEFAULT_SHOOT_POWER = 0.75;
+    private boolean shootMotorEnabled = false;
+    private double targetBasePower = 0;
+    public static double INITIAL_ANGLE = 0.9;
+
+    // Maybe used at a later time
+    public static double TICKS_PER_DEGREE = 7.78;
     public static int MAX_TURRET_ANGLE_DEG = 90;
     public static double HUSKYLENS_FOV_DEG = 60.0;
     private int turretTargetPos = 0;
-    private double targetBasePower = 0;
     private boolean autoAimEnabled = false;
-    private boolean shootMotorEnabled = false;
-    private int lastTagWidth = 0;
-    private double lastTagError = 0;
-    private double compensatedPower = 0;
-
-    // TODO: Tune these mapping constants based on physical testing
-    public static double DIST_POWER_SLOPE = -0.005;
-    public static double DIST_POWER_OFFSET = 1.2;
-    public static double DEFAULT_SHOOT_POWER = 0.75;
     public static double TURRET_TRACKING_POWER = 0.6;
     public static double TURRET_RESET_POWER = 0.5;
-    public static double INITIAL_ANGLE = 0.9;
-    public static int TARGET_TAG_ID = 1; // Default tag to aim at
+    public static int TARGET_TAG_ID = 1;
+    public static double AUTO_SHOOT_POWER = 0.75;
+    //
+
+    // Power Distance Scaling for shoot motor
+    private final double MIN_SHOOT_POWER = 0.55;
+    private final double MAX_SHOOT_POWER = 1.0;
+    private final double POWER_DISTANCE_SCALING = 0.0025; // Adjust this to tune how hard it shoots
+    private double currentRampedPower = 0.0;
+    private final double RAMP_STEP = 0.05; // Adjust this: smaller = smoother/slower, larger = faster surge
+    private final double VOLTAGE = 13.4; // Fresh battery
+    private VoltageSensor voltageSensor;
+
+    // Angle Distance Scaling for outtake angle
+    private final double CLOSE_DIST = 30.0;
+    private final double FAR_DIST = 65.0;
+    private final double CLOSE_ANGLE = 0.5;
+    private final double FAR_ANGLE = 0.9;
 
     public OuttakeSubsystem(HardwareMap hardwareMap) {
         outtakeMotor = hardwareMap.get(DcMotorEx.class, "OuttakeMotor");
@@ -56,7 +66,7 @@ public class OuttakeSubsystem {
 
         shootMotor.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
     }
 
     public void InitVision() {
@@ -77,37 +87,64 @@ public class OuttakeSubsystem {
     }
 
     public void update() {
-        if (autoAimEnabled) {
-            updateAutoAimPower();
+        if (!shootMotorEnabled) {
+            currentRampedPower = 0;
+            shootMotor.setPower(0);
+            return;
         }
 
-        double currentVoltage = voltageSensor.getVoltage();
-        if (currentVoltage < 1.0)
-            currentVoltage = NOMINAL_VOLTAGE;
-
-        compensatedPower = targetBasePower * (NOMINAL_VOLTAGE / currentVoltage);
-        shootMotor.setPower(shootMotorEnabled ? compensatedPower : 0);
+        // RAMPING LOGIC
+        // If we aren't at the target yet, move toward it slowly
+        if (currentRampedPower < targetBasePower) {
+            currentRampedPower += RAMP_STEP;
+            // Don't overshoot the target
+            if (currentRampedPower > targetBasePower)
+                currentRampedPower = targetBasePower;
+        } else if (currentRampedPower > targetBasePower) {
+            // Optional: Ramp down too, or just jump down for safety
+            currentRampedPower = targetBasePower;
+        }
+        shootMotor.setPower(currentRampedPower);
     }
 
-    private void updateAutoAimPower() {
-        HuskyLens.Block[] blocks = hLens.blocks();
-        lastTagWidth = 0; // Reset if no tag is found in this update cycle
-        for (HuskyLens.Block block : blocks) {
-            if (block.id == TARGET_TAG_ID) {
-                // Using width as a simple proxy for distance
-                // Larger width = closer = lower power
-                // Smaller width = further = higher power
-                targetBasePower = (block.width * DIST_POWER_SLOPE) + DIST_POWER_OFFSET;
-                lastTagWidth = block.width;
+    public void updateAutoAimPower(double deltaX, double deltaY) {
+        // 1. CALCULATE DYNAMIC POWER
+        double distance = Math.hypot(deltaX, deltaY);
 
-                // Clamp power between reasonable safe limits
-                if (targetBasePower > 1.0)
-                    targetBasePower = 1.0;
-                if (targetBasePower < 0.4)
-                    targetBasePower = 0.4;
-                return;
-            }
-        }
+        // Linear formula: Power = MinPower + (Dist * Scale)
+        double basePower = MIN_SHOOT_POWER + (distance * POWER_DISTANCE_SCALING);
+
+        // Apply Voltage Compensation
+        double currentVoltage = voltageSensor.getVoltage();
+        double voltageComp = VOLTAGE / currentVoltage;
+
+        targetBasePower = basePower * voltageComp;
+
+        // 2. CLAMP AND APPLY
+        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));
+    }
+
+    public void updateStaticPower() {
+        // Apply Voltage Compensation to the static AUTO_SHOOT_POWER
+        double currentVoltage = voltageSensor.getVoltage();
+        double voltageComp = VOLTAGE / currentVoltage;
+
+        targetBasePower = AUTO_SHOOT_POWER * voltageComp;
+
+        // Clamp to [MIN, MAX]
+        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));
+    }
+
+    public void updateAutoAimAngle(double deltaX, double deltaY) {
+        double distance = Math.hypot(deltaX, deltaY);
+
+        // Map distance to angle: 0.5 (close) to 0.9 (far)
+        double angle = CLOSE_ANGLE + (distance - CLOSE_DIST) * (FAR_ANGLE - CLOSE_ANGLE) / (FAR_DIST - CLOSE_DIST);
+
+        // Clamp to [0.5, 0.9]
+        angle = Math.max(CLOSE_ANGLE, Math.min(FAR_ANGLE, angle));
+
+        SetAngle(angle);
     }
 
     public void SetAutoAim(boolean enabled) {
@@ -137,6 +174,12 @@ public class OuttakeSubsystem {
         return targetBasePower;
     }
 
+    public boolean isReadyToFire() {
+        // Only ready if the motor is enabled and has finished its ramp
+        // 0.02 is a 2% tolerance window
+        return shootMotorEnabled && Math.abs(currentRampedPower - targetBasePower) < 0.02;
+    }
+
     public void IncreaseAngle() {
         if (outtakeAngle.getPosition() < 1)
             outtakeAngle.setPosition(outtakeAngle.getPosition() + 0.1);
@@ -159,22 +202,6 @@ public class OuttakeSubsystem {
         return hLens.blocks();
     }
 
-    public double getTagCenterError(int targetTagId) {
-        InitVision();
-        HuskyLens.Block[] blocks = hLens.blocks();
-        for (HuskyLens.Block block : blocks) {
-            if (block.id == targetTagId) {
-                // Error in pixels from center (320x240 resolution)
-                double errorPixels = block.x - 160;
-                // Convert pixel error to angular error (approximate)
-                lastTagError = errorPixels * (HUSKYLENS_FOV_DEG / 320.0);
-                return lastTagError;
-            }
-        }
-        lastTagError = 0;
-        return 0; // Not found or no error
-    }
-
     public void updateTurretLock(int targetTagId) {
         InitVision();
         HuskyLens.Block[] blocks = hLens.blocks();
@@ -182,19 +209,11 @@ public class OuttakeSubsystem {
 
         for (HuskyLens.Block block : blocks) {
             if (block.id == targetTagId) {
-                // Error in pixels from center (320x240 resolution)
                 double errorPixels = block.x - 160;
-                // Convert pixel error to angular error (approximate)
                 double errorDegrees = errorPixels * (HUSKYLENS_FOV_DEG / 320.0);
-
-                // Calculate new target relative to current angle
-                // Note: This logic assumes the camera moves WITH the turret.
-                // If the camera is static, the logic would be different.
-                // Assuming Camera is ON the turret:
                 double currentAngleDeg = outtakeMotor.getCurrentPosition() / TICKS_PER_DEGREE;
                 double targetAngleDeg = currentAngleDeg + errorDegrees;
 
-                // Clamp to limits
                 if (targetAngleDeg > MAX_TURRET_ANGLE_DEG)
                     targetAngleDeg = MAX_TURRET_ANGLE_DEG;
                 if (targetAngleDeg < -MAX_TURRET_ANGLE_DEG)
@@ -224,28 +243,16 @@ public class OuttakeSubsystem {
         return turretTargetPos;
     }
 
-    public int getLastTagWidth() {
-        return lastTagWidth;
-    }
-
-    public double getLastTagError() {
-        return lastTagError;
-    }
-
-    public double getCompensatedPower() {
-        return compensatedPower;
+    public double getVelocity() {
+        return shootMotor.getVelocity();
     }
 
     public void displayTelemetry(Telemetry telemetry) {
-        telemetry.addData("  Outtake Pos", getOuttakeMotorPosition());
-        // Note: For Turret Lock and Auto Aim status, we'll keep the logic in OPMode for
-        // now
-        // as they use local boolean flags (turretLockEnabled, chassisLockEnabled).
-        // However, we can show the core subsystem data here.
-        telemetry.addData("Target Base Power", "%.2f", getTargetBasePower());
-        telemetry.addData("Compensated Power", "%.2f", getCompensatedPower());
-        telemetry.addData("Tag Width", getLastTagWidth());
-        telemetry.addData("Tag Error", "%.2f", getLastTagError());
+        telemetry.addData("Outtake Pos", getOuttakeMotorPosition());
+        telemetry.addData("Target Power", "%.2f", getTargetBasePower());
+        telemetry.addData("Current Power", "%.2f", currentRampedPower);
+        telemetry.addData("Ready to Fire", isReadyToFire());
+        telemetry.addData("ShootMotor Velocity", getVelocity());
         telemetry.addData("Turret Target", getTurretTargetPos());
     }
 }
