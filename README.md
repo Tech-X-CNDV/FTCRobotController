@@ -12,11 +12,11 @@
 
 ## 🚀 Key Software Features
 
-- **Smart Flywheel**: Real-time voltage compensation and distance-adaptive power mapping using HuskyLens AprilTag detection.
-- **Chassis Tag-Lock**: Automatic robot orientation towards targets with driver-maintained translational control.
-- **Turret Auto-Aim**: Dynamic turret tracking for consistent scoring from multiple angles.
-- **Storage Watchdog**: Intelligent jam detection and automatic recovery for the indexing subsystem.
-- **Decoupled Telemetry**: Professional, grouped debug data optimized for both Driver and Operator stations.
+- **Universal Coordinate System**: Symmetric field logic using Blue alliance as the source of truth with automated Red mirroring via `.mirror()`.
+- **Intelligent Storage Watchdog**: Unified busy/recovery state machine with adaptive distance-to-target thresholds to eliminate mechanical stalls.
+- **Smart Outtake**: Dynamic velocity-ready detection and predictive power mapping for consistent long-range scoring.
+- **Performance Monitoring**: Real-time loop frequency tracking (<10ms) integrated into all autonomous and teleop routines.
+- **Precision Chassis Lock**: Field-centric driving with manual heading reset and automatic alliance orientation offsets.
 
 ## 📖 Useful Documentation
 
@@ -39,6 +39,8 @@ If you are a driver, programmer, or coach, please refer to these guides for setu
 | **Intake Subsystem** | [`IntakeSubsytem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/IntakeSubsytem.java) |
 | **Storage Subsystem** | [`StorageSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/StorageSubsystem.java) |
 | **Outtake Subsystem** | [`OuttakeSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/OuttakeSubsystem.java) |
+| **Field Coordinates** | [`FieldPoses.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/FieldPoses.java) |
+| **Pose Storage** | [`PoseStorage.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/PoseStorage.java) |
 
 ## 🛠 Tech Stack
 

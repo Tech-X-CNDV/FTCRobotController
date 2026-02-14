@@ -8,11 +8,14 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.util.ElapsedTime;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
+import org.firstinspires.ftc.teamcode.config.FieldPoses;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @Autonomous(name = "AutoBlue")
@@ -23,28 +26,35 @@ public class AutonomieBlue extends OpMode {
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
     IntakeSubsytem intakeSubsytem;
+    private boolean dynamicAimStarted = false;
+    private final ElapsedTime timer = new ElapsedTime();
+    private final ElapsedTime matchTimer = new ElapsedTime();
+    private double lastTime = 0;
+    private double loopTime;
 
-    // Pose Constants for the Blue Side
-    private final Pose startPose = new Pose(23.25028571428571, 126.49142857142861, Math.toRadians(143));
-    private final Pose scorePose = new Pose(56.15201428571429, 87.87884285714283, Math.toRadians(143));
+    // Pose Constants
+    private final Pose startPose = FieldPoses.START;
+    private final Pose scorePose = FieldPoses.SCORE;
+    private final Pose LOCK_POSE = FieldPoses.LOCK_POSE;
+    private Pose targetPose;
 
     // Pickup 1
-    private final Pose pickup1 = new Pose(46.5110334, 80.3317188, -3.08578);
-    private final Pose getPick1 = new Pose(14.008908, 80.3317188, -3.08578);
-    private final Pose posGate = new Pose(25.452620, 80.272503, -3.08578);
-    private final Pose openGate = new Pose(15.7, 73.0695589, -3.08578);
+    private final Pose pickup1 = FieldPoses.PICKUP_1;
+    private final Pose getPick1 = FieldPoses.GET_PICK_1;
+    private final Pose posGate = FieldPoses.POS_GATE;
+    private final Pose openGate = FieldPoses.OPEN_GATE;
 
     // Pickup 2
-    private final Pose pickup2 = new Pose(46.5110334, 56.334464, -3.10931);
-    private final Pose getPick2 = new Pose(7.847059, 56.334464, -3.10931);
-    private final Pose getPick2Back = new Pose(30.0, 55.929082, Math.toRadians(190)); // Pulled back ~13 inches
+    private final Pose pickup2 = FieldPoses.PICKUP_2;
+    private final Pose getPick2 = FieldPoses.GET_PICK_2;
+    private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK;
 
     // Pickup 3
-    private final Pose pickup3 = new Pose(46.5110334, 32.558042, -3.10931);
-    private final Pose getPick3 = new Pose(7.87840, 32.558042, -3.10931);
+    private final Pose pickup3 = FieldPoses.PICKUP_3;
+    private final Pose getPick3 = FieldPoses.GET_PICK_3;
 
     // Parking
-    private final Pose parkPose = new Pose(20.60571428571428, 88.75771428571429, Math.toRadians(141));
+    private final Pose parkPose = FieldPoses.PARK;
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11;
 
     public void buildPaths() {
@@ -122,14 +132,14 @@ public class AutonomieBlue extends OpMode {
     public void autonomousPathUpdate(boolean isBusy, Pose currentPose) {
         switch (pathState) {
             case 0: // Move to Preload Score
-                follower.followPath(path1);
-                outtakeSubsystem.ToggleShootMotorAuto();
-                follower.setMaxPower(1);
+                follower.followPath(path1, true);
+                follower.setMaxPower(0.85);
                 storageSubsystem.autoThrow = true;
                 setPathState(1);
                 break;
             case 1: // SHOOTING: Preload
                 if (!isBusy) {
+                    dynamicAimStarted = true;
                     if (storageSubsystem.autoThrow) {
                         storageSubsystem.ThrowAll();
                     } else {
@@ -157,7 +167,7 @@ public class AutonomieBlue extends OpMode {
             case 4: // RETURN to Score 1 (Path 4)
                 if (!isBusy) {
                     follower.setMaxPower(1.0);
-                    follower.followPath(path4);
+                    follower.followPath(path4, true);
                     setPathState(5);
                 }
                 storageSubsystem.MoveRelative(475, 1);
@@ -195,7 +205,7 @@ public class AutonomieBlue extends OpMode {
             case 8: // RETURN Score 2 (Path 7 - Bezier)
                 if (!isBusy) {
                     follower.setMaxPower(1.0);
-                    follower.followPath(path7);
+                    follower.followPath(path7, true);
                     setPathState(9);
                 }
                 storageSubsystem.MoveRelative(475, 1);
@@ -225,6 +235,7 @@ public class AutonomieBlue extends OpMode {
                 if (!isBusy) {
                     follower.setMaxPower(1);
                     intakeSubsytem.setPower(1);
+                    scorePose.setHeading(scorePose.getHeading() - Math.toRadians(1));
                     follower.followPath(path10);
                     setPathState(12);
                 }
@@ -232,7 +243,7 @@ public class AutonomieBlue extends OpMode {
             case 12: // RETURN Score 3 (Path 11)
                 if (!isBusy) {
                     follower.setMaxPower(1.0);
-                    follower.followPath(path11);
+                    follower.followPath(path11, true);
                     setPathState(13);
                 }
                 if (pathTimer.getElapsedTimeSeconds() > 0.1) {
@@ -254,8 +265,8 @@ public class AutonomieBlue extends OpMode {
                     } else {
                         intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
-                        outtakeSubsystem.ToggleShootMotorAuto();
-                        follower.followPath(path8); // Park
+                        outtakeSubsystem.SetShootMotorPower(0);
+                        follower.followPath(path8, true); // Park
                         setPathState(15);
                     }
                 }
@@ -279,6 +290,7 @@ public class AutonomieBlue extends OpMode {
         outtakeSubsystem.InitOuttake();
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
+        telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
         storageSubsystem.InitStorage();
 
         intakeSubsytem = new IntakeSubsytem(hardwareMap);
@@ -289,13 +301,16 @@ public class AutonomieBlue extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         buildPaths();
         follower.setStartingPose(startPose);
+        targetPose = LOCK_POSE;
     }
 
     @Override
     public void start() {
         pathTimer.resetTimer();
+        matchTimer.reset();
         outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(OuttakeSubsystem.AUTO_SHOOT_POWER);
+        outtakeSubsystem.SetShootMotorPower(1.0);
+        dynamicAimStarted = false;
         PoseStorage.isRed = false;
         PoseStorage.allianceOffset = Math.toRadians(180);
         setPathState(0);
@@ -303,13 +318,40 @@ public class AutonomieBlue extends OpMode {
 
     @Override
     public void loop() {
+        double currentTime = timer.milliseconds();
+        loopTime = currentTime - lastTime;
+        lastTime = currentTime;
+
         boolean isBusy = follower.isBusy();
         Pose currentPose = follower.getPose();
 
         follower.update();
         storageSubsystem.update();
         outtakeSubsystem.update();
-        outtakeSubsystem.updateStaticPower(); // Keep voltage compensation active
+
+        if (dynamicAimStarted) {
+            // Calculate Distance to Bucket (LOCK_POSE for Blue)
+            double deltaX = targetPose.getX() - currentPose.getX();
+            double deltaY = targetPose.getY() - currentPose.getY();
+
+            outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
+            outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
+        } else {
+            // High-power spin-up while traveling to first position
+            outtakeSubsystem.SetShootMotorPower(1.0);
+            outtakeSubsystem.AutoAngle();
+        }
+
+        // --- 30s FAILSAFE GUARDIAN ---
+        if (matchTimer.seconds() > 29.8) {
+            follower.breakFollowing();
+            follower.setMaxPower(0);
+            outtakeSubsystem.SetShootMotorPower(0);
+            intakeSubsytem.setPower(0);
+            PoseStorage.autoPoseBlue = currentPose;
+            requestOpModeStop();
+        }
+
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseBlue = currentPose;
 
@@ -317,6 +359,7 @@ public class AutonomieBlue extends OpMode {
                 || storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.RETURNING)
             intakeSubsytem.setPower(1);
         // --- AUTO STATUS ---
+        telemetry.addData("Loop Time", "%.2f ms", loopTime);
         telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
 
         // --- DRIVE / POSITION ---

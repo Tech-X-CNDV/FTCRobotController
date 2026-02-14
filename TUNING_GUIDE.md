@@ -12,8 +12,8 @@ The outtake power is now calculated using PedroPathing distances: `Power = MIN_S
 | :--- | :--- | :--- |
 | `VOLTAGE` | The reference battery level (default 13.4V). | Power is scaled UP as battery drops below this. Do not change during competition. |
 | `MIN_SHOOT_POWER` | Minimum power to eject a ball (default 0.55). | Adjust until the ball barely leaves the launcher at close range. |
-| `POWER_DISTANCE_SCALING`| How much power increases per inch (default 0.0025). | Increase if shots fall short at long range but hit correctly at close range. |
-| `RAMP_STEP` | Launch motor acceleration (default 0.05). | **Decrease** (e.g. 0.02) if the gearbox clicks or motor stalls. **Increase** for faster spin-up. |
+| `MAX_VELOCITY` | Ticks/sec at 1.0 power (default 2800). | **CRITICAL**: Run the motor at 1.0 power and check telemetry for `Current Velocity`. Put that value here. |
+| `POWER_DISTANCE_SCALING`| How much power increases per inch (default 0.0012). | Increase if shots fall short at long range but hit correctly at close range. |
 | `AUTO_SHOOT_POWER`| Static power for Autonomous (default 0.75). | Set to your most consistent scoring power for fixed positions. |
 
 ### Dynamic Launcher Angle

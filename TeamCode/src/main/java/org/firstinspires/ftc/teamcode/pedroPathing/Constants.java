@@ -10,10 +10,11 @@ import com.pedropathing.ftc.localization.constants.PinpointConstants;
 import com.pedropathing.paths.PathConstraints;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+
+// TODO: Recalibrate All Constants ASAP
 
 public class Constants {
         public static FollowerConstants followerConstants = new FollowerConstants()
@@ -22,9 +23,9 @@ public class Constants {
                         .lateralZeroPowerAcceleration(-86.09410951475061)
                         // .translationalPIDFCoefficients(new PIDFCoefficients(0.6, 0, 0.05, 0.01))
                         // .headingPIDFCoefficients(new PIDFCoefficients(1, 0,0.05,0.03))
-                        .translationalPIDFCoefficients(new PIDFCoefficients(0.45, 0, 0.085, 0.01))
-                        // .headingPIDFCoefficients(new PIDFCoefficients(0.6, 0, 0.08, 0.01))
-                        .headingPIDFCoefficients(new PIDFCoefficients(0.9, 0, 0.1, 0.02))
+                        .translationalPIDFCoefficients(new PIDFCoefficients(0.20, 0, 0.090, 0.03))
+                        .headingPIDFCoefficients(new PIDFCoefficients(0.45, 0, 0.10, 0.01))
+                        // .headingPIDFCoefficients(new PIDFCoefficients(0.9, 0, 0.1, 0.02))
                         .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.02, 0, 0.001, 0.6, 0.02))
                         .centripetalScaling(0.0005);
 
@@ -53,7 +54,7 @@ public class Constants {
 
         // public static PathConstraints pathConstraints = new PathConstraints(0.99,
         // 100, 1, 1);
-        public static PathConstraints pathConstraints = new PathConstraints(0.99, 200, 1, 1);
+        public static PathConstraints pathConstraints = new PathConstraints(0.98, 200, 1, 1);
 
         public static Follower createFollower(HardwareMap hardwareMap) {
                 return new FollowerBuilder(followerConstants, hardwareMap)

@@ -11,11 +11,13 @@ import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
+import org.firstinspires.ftc.teamcode.config.FieldPoses;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
@@ -50,10 +52,10 @@ public class OPMode extends OpMode {
     // private double lastValidChassisError = 0;
     // private double lastValidChassisTime = 0;
 
-    private final Pose SCORE_POSE_RED = new Pose(87.8480, 87.8788, Math.toRadians(40));
-    private final Pose SCORE_POSE_BLUE = new Pose(56.15201428571429, 87.87884285714283, Math.toRadians(143));
-    private final Pose LOCK_POSE_BLUE = new Pose(7.780571428571426, 135.07199999999997);
-    private final Pose LOCK_POSE_RED = new Pose(120.7497, 126.4914, Math.toRadians(40));
+    private final Pose SCORE_POSE_RED = FieldPoses.SCORE.mirror();
+    private final Pose SCORE_POSE_BLUE = FieldPoses.SCORE;
+    private final Pose LOCK_POSE = FieldPoses.LOCK_POSE;
+    Pose targetPose;
 
     public void driveToPose(Pose targetPose) {
         // Build the path using CURRENT position at this exact millisecond
@@ -73,6 +75,7 @@ public class OPMode extends OpMode {
         // targetTagId = PoseStorage.isRed ? 2 : 1;
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
+        telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
 
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
         for (LynxModule hub : allHubs) {
@@ -101,7 +104,8 @@ public class OPMode extends OpMode {
         // Drivetrain Constants in Constant.java (for Mecanum)
         // If you don't pass anything in, it uses the default (false)
         follower.startTeleopDrive(true);
-        outtakeSubsystem.SetAngle(OuttakeSubsystem.INITIAL_ANGLE);
+        targetPose = PoseStorage.isRed ? LOCK_POSE.mirror() : LOCK_POSE;
+        outtakeSubsystem.SetAngle(0);
     }
 
     private ElapsedTime timer = new ElapsedTime();
@@ -140,8 +144,8 @@ public class OPMode extends OpMode {
 
     private void handleDriverControls() {
         // 1. INPUT GATHERING
-        double drive = gamepad1.left_stick_y;
-        double strafe = gamepad1.left_stick_x;
+        double drive = -gamepad1.left_stick_y;
+        double strafe = -gamepad1.left_stick_x;
         double turn = -gamepad1.right_stick_x;
 
         // 2. FEATURE TOGGLES & RESET LOGIC
@@ -193,7 +197,6 @@ public class OPMode extends OpMode {
 
             if (chassisLockEnabled) {
                 // Determine lock target based on Alliance
-                Pose targetPose = PoseStorage.isRed ? LOCK_POSE_RED : LOCK_POSE_BLUE;
                 double deltaX = targetPose.getX() - follower.getPose().getX();
                 double deltaY = targetPose.getY() - follower.getPose().getY();
                 double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5);
@@ -225,7 +228,7 @@ public class OPMode extends OpMode {
                 double autoTurnPower = headingError * 1.2;
 
                 // "POWER STEERING" LOCK:
-                follower.setTeleOpDrive(-drive, -strafe, autoTurnPower, false, angleToScore);
+                follower.setTeleOpDrive(drive, strafe, autoTurnPower, false, angleToScore);
 
             } else {
                 // STANDARD FIELD-CENTRIC
@@ -267,7 +270,7 @@ public class OPMode extends OpMode {
         if (gamepad2.dpadDownWasPressed())
             storageSubsystem.ResetStuck();
         if (gamepad2.dpadRightWasPressed())
-            storageSubsystem.setServoPos(storageSubsystem.getServoPos() == 1 ? 0.7 : 1);
+            storageSubsystem.setServoPos(storageSubsystem.getServoPos() > 0.8 ? 0.7 : 0.97);
         /*
          * Not used at the moment
          * if (gamepad2.bWasPressed() && foundPattern) {

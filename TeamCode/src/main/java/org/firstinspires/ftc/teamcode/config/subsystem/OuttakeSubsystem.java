@@ -12,7 +12,7 @@ public class OuttakeSubsystem {
     private final DcMotorEx outtakeMotor, shootMotor;
     private final Servo outtakeAngle;
 
-    public static double DEFAULT_SHOOT_POWER = 0.75;
+    public static double DEFAULT_SHOOT_POWER = 1;
     private boolean shootMotorEnabled = false;
     private double targetBasePower = 0;
     public static double INITIAL_ANGLE = 0.9;
@@ -32,16 +32,17 @@ public class OuttakeSubsystem {
     // Power Distance Scaling for shoot motor
     private final double MIN_SHOOT_POWER = 0.55;
     private final double MAX_SHOOT_POWER = 1.0;
-    private final double POWER_DISTANCE_SCALING = 0.0025; // Adjust this to tune how hard it shoots
-    private double currentRampedPower = 0.0;
-    private final double RAMP_STEP = 0.05; // Adjust this: smaller = smoother/slower, larger = faster surge
+    private final double POWER_DISTANCE_SCALING = 0.0012; // Adjust this to tune how hard it shoots
+    public static double MAX_VELOCITY = 2300; // Ticks per second at 1.0 power. TUNE THIS!
     private final double VOLTAGE = 13.4; // Fresh battery
+    private double filteredVoltage = 13.0; // Start at a healthy middle ground
+    private final double LPF_COEFFICIENT = 0.95; // 0.95 means it keeps 95% of old value, 5% of new
     private VoltageSensor voltageSensor;
 
     // Angle Distance Scaling for outtake angle
     private final double CLOSE_DIST = 30.0;
     private final double FAR_DIST = 65.0;
-    private final double CLOSE_ANGLE = 0.5;
+    private final double CLOSE_ANGLE = 0.15;
     private final double FAR_ANGLE = 0.9;
 
     public OuttakeSubsystem(HardwareMap hardwareMap) {
@@ -63,10 +64,11 @@ public class OuttakeSubsystem {
         outtakeMotor.setPower(0);
 
         targetBasePower = DEFAULT_SHOOT_POWER;
+        filteredVoltage = voltageSensor.getVoltage();
 
         shootMotor.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
     }
 
     public void InitVision() {
@@ -88,23 +90,18 @@ public class OuttakeSubsystem {
 
     public void update() {
         if (!shootMotorEnabled) {
-            currentRampedPower = 0;
             shootMotor.setPower(0);
             return;
         }
 
-        // RAMPING LOGIC
-        // If we aren't at the target yet, move toward it slowly
-        if (currentRampedPower < targetBasePower) {
-            currentRampedPower += RAMP_STEP;
-            // Don't overshoot the target
-            if (currentRampedPower > targetBasePower)
-                currentRampedPower = targetBasePower;
-        } else if (currentRampedPower > targetBasePower) {
-            // Optional: Ramp down too, or just jump down for safety
-            currentRampedPower = targetBasePower;
-        }
-        shootMotor.setPower(currentRampedPower);
+        // This "Smooths" the voltage readings
+        // It ignores sudden spikes from the drivetrain but tracks the battery's real
+        // state
+        double instantVoltage = voltageSensor.getVoltage();
+        filteredVoltage = (LPF_COEFFICIENT * filteredVoltage) + ((1 - LPF_COEFFICIENT) * instantVoltage);
+
+        // DIRECT POWER (Ramping removed)
+        shootMotor.setPower(targetBasePower);
     }
 
     public void updateAutoAimPower(double deltaX, double deltaY) {
@@ -115,8 +112,7 @@ public class OuttakeSubsystem {
         double basePower = MIN_SHOOT_POWER + (distance * POWER_DISTANCE_SCALING);
 
         // Apply Voltage Compensation
-        double currentVoltage = voltageSensor.getVoltage();
-        double voltageComp = VOLTAGE / currentVoltage;
+        double voltageComp = VOLTAGE / filteredVoltage;
 
         targetBasePower = basePower * voltageComp;
 
@@ -126,8 +122,7 @@ public class OuttakeSubsystem {
 
     public void updateStaticPower() {
         // Apply Voltage Compensation to the static AUTO_SHOOT_POWER
-        double currentVoltage = voltageSensor.getVoltage();
-        double voltageComp = VOLTAGE / currentVoltage;
+        double voltageComp = VOLTAGE / filteredVoltage;
 
         targetBasePower = AUTO_SHOOT_POWER * voltageComp;
 
@@ -175,9 +170,9 @@ public class OuttakeSubsystem {
     }
 
     public boolean isReadyToFire() {
-        // Only ready if the motor is enabled and has finished its ramp
-        // 0.02 is a 2% tolerance window
-        return shootMotorEnabled && Math.abs(currentRampedPower - targetBasePower) < 0.02;
+        // Ready if enabled and velocity is within 5% of our expected target velocity
+        double targetVelocity = targetBasePower * MAX_VELOCITY;
+        return shootMotorEnabled && (getVelocity() >= targetVelocity * 0.95);
     }
 
     public void IncreaseAngle() {
@@ -248,10 +243,16 @@ public class OuttakeSubsystem {
     }
 
     public void displayTelemetry(Telemetry telemetry) {
+        if (isReadyToFire()) {
+            telemetry.addLine("<b><font color='lime'><h1>*** READY TO FIRE ***</h1></font></b>");
+        } else if (shootMotorEnabled) {
+            telemetry.addLine("<i>Spinning Up...</i>");
+        } else {
+            telemetry.addLine("<i>Stopped</i>");
+        }
         telemetry.addData("Outtake Pos", getOuttakeMotorPosition());
         telemetry.addData("Target Power", "%.2f", getTargetBasePower());
-        telemetry.addData("Current Power", "%.2f", currentRampedPower);
-        telemetry.addData("Ready to Fire", isReadyToFire());
+        telemetry.addData("Target Velocity", "%.0f", getTargetBasePower() * MAX_VELOCITY);
         telemetry.addData("ShootMotor Velocity", getVelocity());
         telemetry.addData("Turret Target", getTurretTargetPos());
     }

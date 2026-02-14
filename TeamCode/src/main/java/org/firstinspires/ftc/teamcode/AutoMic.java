@@ -11,9 +11,11 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
+import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
-@Autonomous(name = "AutoMicBlue")
+@Autonomous(name = "AutoMicRed")
 public class AutoMic extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer;
@@ -21,6 +23,7 @@ public class AutoMic extends OpMode {
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
     IntakeSubsytem intakeSubsytem;
+    private final ElapsedTime matchTimer = new ElapsedTime();
 
     // public Outtake motorOuttake,servoPusher;
 
@@ -134,7 +137,9 @@ public class AutoMic extends OpMode {
     @Override
     public void start() {
         pathTimer.resetTimer();
+        matchTimer.reset();
         outtakeSubsystem.SetAutoAim(true);
+        PoseStorage.isRed = true; // AutoMic is currently Red
         setPathState(0);
     }
 
@@ -143,7 +148,21 @@ public class AutoMic extends OpMode {
         follower.update();
         storageSubsystem.update();
         outtakeSubsystem.update();
+
+        Pose currentPose = follower.getPose();
+
+        // --- 30s FAILSAFE GUARDIAN ---
+        if (matchTimer.seconds() > 29.8) {
+            follower.breakFollowing();
+            follower.setMaxPower(0);
+            outtakeSubsystem.SetShootMotorPower(0);
+            intakeSubsytem.setPower(0);
+            PoseStorage.autoPoseRed = currentPose;
+            requestOpModeStop();
+        }
+
         autonomousPathUpdate();
+        PoseStorage.autoPoseRed = currentPose;
         // --- AUTO STATUS ---
         telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
 

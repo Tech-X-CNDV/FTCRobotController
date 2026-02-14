@@ -19,6 +19,7 @@ public class StorageSubsystem {
     public static double STUCK_VELOCITY_THRESHOLD = 50.0; // ticks per second
     public static double STUCK_TIMEOUT_MS = 500.0; // 500ms before considering it stuck
     public static double RECOVERY_DELAY_MS = 250.0; // 250ms wait before retrying
+    public static int BUSY_TOLERANCE = 15; // Unified threshold for isBusy and Watchdog
 
     private final ElapsedTime stuckTimer = new ElapsedTime();
     private final ElapsedTime recoveryTimer = new ElapsedTime();
@@ -58,7 +59,7 @@ public class StorageSubsystem {
         storageMotor.setTargetPosition(0);
         storageMotor.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
 
-        servoArunc.setPosition(1);
+        servoArunc.setPosition(0.97);
     }
 
     public double ReturnVelocity() {
@@ -73,14 +74,11 @@ public class StorageSubsystem {
             ResetStuck();
         }
 
-        // TOLERANCE: Allow a new move if we are within 50 ticks of the target.
-        // This prevents "dead zones" where the motor hasn't quite settled.
-        if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) > 5
-                && storageMotor.isBusy())
+        if (isBusy())
             return;
 
         // We only increment if the code explicitly asks for a NEW movement
-        servoArunc.setPosition(1);
+        servoArunc.setPosition(0.97);
         setTarget(storageMotor.getCurrentPosition() + delta, power);
     }
 
@@ -103,7 +101,7 @@ public class StorageSubsystem {
             case 1: // PHASE 2: RETRACT & INDEX SIMULTANEOUSLY
                 // Adjusted to 0.32s to give the Axon time to complete the full 0.6 arc
                 if (servoTimer.seconds() > 0.32) {
-                    servoArunc.setPosition(1.0); // Start returning to home
+                    servoArunc.setPosition(0.97); // Start returning to home
 
                     turns++;
                     if (turns >= 3) {
@@ -155,7 +153,7 @@ public class StorageSubsystem {
         if (pos > 2) {
             pos = 0;
             turns = 0;
-            servoArunc.setPosition(1);
+            servoArunc.setPosition(0.97);
             this.autoSort = false;
             return;
         }
@@ -163,7 +161,7 @@ public class StorageSubsystem {
         char currentColor = idenColor();
 
         if (autoSort && currentColor != pattern[pos]) {
-            servoArunc.setPosition(1);
+            servoArunc.setPosition(0.97);
             if (turns >= 3) {
                 turns = 0;
                 this.autoSort = false;
@@ -188,10 +186,8 @@ public class StorageSubsystem {
         // MONITOR IN ALL ACTIVE STATES: Idle, Returning, or Retrying.
         // If it jams during a recovery phase, we need to know!
         if (storageMotor.isBusy() && !isStuck) {
-            // Safety Check: If we are very close to the target, ignore velocity.
-            // This prevents false positives when the motor is settling/vibrating at the
-            // target.
-            if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) < 50) {
+            // target. We now use the unified BUSY_TOLERANCE to eliminate dead-zones.
+            if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) < BUSY_TOLERANCE) {
                 stuckTimer.reset();
                 return;
             }
@@ -214,8 +210,10 @@ public class StorageSubsystem {
     }
 
     private void updateRecovery() {
+        int error = Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition());
+
         if (recoveryState == RecoveryState.RETURNING) {
-            if (!storageMotor.isBusy()) {
+            if (error < BUSY_TOLERANCE) {
                 recoveryState = RecoveryState.WAITING_FOR_RETRY;
                 recoveryTimer.reset();
             }
@@ -226,7 +224,7 @@ public class StorageSubsystem {
                 storageMotor.setPower(lastMovePower);
             }
         } else if (recoveryState == RecoveryState.RETRYING) {
-            if (!storageMotor.isBusy()) {
+            if (error < BUSY_TOLERANCE) {
                 recoveryState = RecoveryState.IDLE;
                 isStuck = false;
             }
@@ -252,7 +250,7 @@ public class StorageSubsystem {
         turns = 0; // Reset ball count
         recoveryState = RecoveryState.IDLE;
         isStuck = false;
-        servoArunc.setPosition(1.0); // Reset flicker to home
+        servoArunc.setPosition(0.97); // Reset flicker to home
 
         // Kill motor movement and lock it at current position
         storageMotor.setPower(0);
@@ -325,6 +323,12 @@ public class StorageSubsystem {
         // If we are in a recovery state, we are definitely busy.
         if (recoveryState != RecoveryState.IDLE)
             return true;
+
+        // Unified "Close enough" check: if we are within BUSY_TOLERANCE, we aren't
+        // busy.
+        if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) < BUSY_TOLERANCE) {
+            return false;
+        }
 
         // Otherwise, check the motor.
         return storageMotor.isBusy();
