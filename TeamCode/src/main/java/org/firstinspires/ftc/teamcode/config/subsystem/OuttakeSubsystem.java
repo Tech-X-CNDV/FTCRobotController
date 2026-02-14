@@ -246,7 +246,7 @@ public class OuttakeSubsystem {
 
     public void displayTelemetry(Telemetry telemetry) {
         if (isReadyToFire()) {
-            telemetry.addLine("<b><font color='lime'><h1>*** READY TO FIRE ***</h1></font></b>");
+            telemetry.addLine("<h1><font color='#00FF00'>*** READY TO FIRE ***</font></h1>");
         } else if (shootMotorEnabled) {
             telemetry.addLine("<i>Spinning Up...</i>");
         } else {

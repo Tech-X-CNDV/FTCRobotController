@@ -8,6 +8,7 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
@@ -243,6 +244,7 @@ public class AutoRedPartial extends OpMode {
         outtakeSubsystem.InitOuttake();
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
+        telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
         storageSubsystem.InitStorage();
 
         intakeSubsytem = new IntakeSubsytem(hardwareMap);
