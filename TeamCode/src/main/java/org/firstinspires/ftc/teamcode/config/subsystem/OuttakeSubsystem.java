@@ -172,7 +172,9 @@ public class OuttakeSubsystem {
     public boolean isReadyToFire() {
         // Ready if enabled and velocity is within 5% of our expected target velocity
         double targetVelocity = targetBasePower * MAX_VELOCITY;
-        return shootMotorEnabled && (getVelocity() >= targetVelocity * 0.95);
+        double currentVelocity = getVelocity();
+        return shootMotorEnabled
+                && (currentVelocity >= targetVelocity * 0.95 && currentVelocity <= targetVelocity * 1.05);
     }
 
     public void IncreaseAngle() {
