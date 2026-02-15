@@ -42,6 +42,7 @@ public class OPMode extends OpMode {
     char[] charPattern;
     boolean turretLockEnabled = false;
     boolean chassisLockEnabled = false;
+    private double manualHeadingOffset = 0;
     // int targetTagId = 1; // Default tag to track, can be adjusted
     // public static double kP_CHASSIS_TURN = -0.012; // Slight boost from -0.01
     // baseline
@@ -196,10 +197,14 @@ public class OPMode extends OpMode {
             }
 
             if (chassisLockEnabled) {
+                if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+                    manualHeadingOffset -= gamepad1.right_stick_x * 0.015; // Tunable sensitivity
+                }
+
                 // Determine lock target based on Alliance
                 double deltaX = targetPose.getX() - follower.getPose().getX();
                 double deltaY = targetPose.getY() - follower.getPose().getY();
-                double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5);
+                double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
                 /*
                  * Telemetry if needed
                  * telemetry.addData("Angle to Score", Math.toDegrees(angleToScore));
@@ -325,7 +330,8 @@ public class OPMode extends OpMode {
         // --- GAMEPAD 1: DRIVER ---
         telemetry.addLine("=== GAMEPAD 1: DRIVER ===");
         telemetry.addData("> Drive Mode", slowMode ? "SLOW (x" + slowModeMultiplier + ")" : "NORMAL");
-        telemetry.addData("> Chassis Lock", chassisLockEnabled ? "ACTIVE" : "OFF");
+        telemetry.addData("> Chassis Lock", chassisLockEnabled ? "ACTIVE (Offset: %.1f°)" : "OFF",
+                Math.toDegrees(manualHeadingOffset));
         intakeSubsytem.displayTelemetry(telemetry);
         telemetry.addData("> Drive Pos", "X:%.1f Y:%.1f H:%.1f", currentPose.getX(), currentPose.getY(),
                 Math.toDegrees(currentPose.getHeading()));
