@@ -9,10 +9,10 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class OuttakeSubsystem {
     private final HuskyLens hLens;
-    private final DcMotorEx outtakeMotor, shootMotor;
+    private final DcMotorEx shootMotor, shootMotor2;
     private final Servo outtakeAngle;
 
-    public static double DEFAULT_SHOOT_POWER = 1;
+    public static double DEFAULT_SHOOT_POWER = 0.85;
     private boolean shootMotorEnabled = false;
     private double targetBasePower = 0;
     public static double INITIAL_ANGLE = 0.9;
@@ -30,10 +30,10 @@ public class OuttakeSubsystem {
     //
 
     // Power Distance Scaling for shoot motor
-    private final double MIN_SHOOT_POWER = 0.55;
+    private final double MIN_SHOOT_POWER = 0.47;
     private final double MAX_SHOOT_POWER = 1.0;
     private final double POWER_DISTANCE_SCALING = 0.0012; // Adjust this to tune how hard it shoots
-    public static double MAX_VELOCITY = 2300; // Ticks per second at 1.0 power. TUNE THIS!
+    public static double MAX_VELOCITY = 2680; // Ticks per second at 1.0 power. TUNE THIS!
     private final double VOLTAGE = 13.4; // Fresh battery
     private double filteredVoltage = 13.0; // Start at a healthy middle ground
     private final double LPF_COEFFICIENT = 0.95; // 0.95 means it keeps 95% of old value, 5% of new
@@ -46,8 +46,8 @@ public class OuttakeSubsystem {
     private final double FAR_ANGLE = 0.9;
 
     public OuttakeSubsystem(HardwareMap hardwareMap) {
-        outtakeMotor = hardwareMap.get(DcMotorEx.class, "OuttakeMotor");
         shootMotor = hardwareMap.get(DcMotorEx.class, "ShootMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "ShootMotor2");
         outtakeAngle = hardwareMap.get(Servo.class, "outtakeAngle");
         hLens = hardwareMap.get(HuskyLens.class, "hLens");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
@@ -56,12 +56,8 @@ public class OuttakeSubsystem {
     private boolean huskyLensInitialized = false;
 
     public void InitOuttake() {
-        outtakeMotor.setDirection(DcMotorEx.Direction.FORWARD);
-        outtakeMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        outtakeMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-        outtakeMotor.setTargetPosition(0);
-        outtakeMotor.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
-        outtakeMotor.setPower(0);
+        targetBasePower = DEFAULT_SHOOT_POWER;
+        filteredVoltage = voltageSensor.getVoltage();
 
         targetBasePower = DEFAULT_SHOOT_POWER;
         filteredVoltage = voltageSensor.getVoltage();
@@ -69,6 +65,10 @@ public class OuttakeSubsystem {
         shootMotor.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+
+        shootMotor2.setDirection(DcMotorEx.Direction.FORWARD);
+        shootMotor2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+        shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
     }
 
     public void InitVision() {
@@ -79,18 +79,10 @@ public class OuttakeSubsystem {
         huskyLensInitialized = true;
     }
 
-    public void OuttakeMotorControl(double power) {
-        if (outtakeMotor.getCurrentPosition() > -500 && power < 0)
-            outtakeMotor.setPower(power);
-        else if (outtakeMotor.getCurrentPosition() < 700 && power > 0)
-            outtakeMotor.setPower(power);
-        else
-            outtakeMotor.setPower(0);
-    }
-
     public void update() {
         if (!shootMotorEnabled) {
             shootMotor.setPower(0);
+            shootMotor2.setPower(0);
             return;
         }
 
@@ -102,6 +94,7 @@ public class OuttakeSubsystem {
 
         // DIRECT POWER (Ramping removed)
         shootMotor.setPower(targetBasePower);
+        shootMotor2.setPower(targetBasePower);
     }
 
     public void updateAutoAimPower(double deltaX, double deltaY) {
@@ -199,49 +192,51 @@ public class OuttakeSubsystem {
         return hLens.blocks();
     }
 
-    public void updateTurretLock(int targetTagId) {
-        InitVision();
-        HuskyLens.Block[] blocks = hLens.blocks();
-        boolean found = false;
+    // public void updateTurretLock(int targetTagId) {
+    // InitVision();
+    // HuskyLens.Block[] blocks = hLens.blocks();
+    // boolean found = false;
 
-        for (HuskyLens.Block block : blocks) {
-            if (block.id == targetTagId) {
-                double errorPixels = block.x - 160;
-                double errorDegrees = errorPixels * (HUSKYLENS_FOV_DEG / 320.0);
-                double currentAngleDeg = outtakeMotor.getCurrentPosition() / TICKS_PER_DEGREE;
-                double targetAngleDeg = currentAngleDeg + errorDegrees;
+    // for (HuskyLens.Block block : blocks) {
+    // if (block.id == targetTagId) {
+    // double errorPixels = block.x - 160;
+    // double errorDegrees = errorPixels * (HUSKYLENS_FOV_DEG / 320.0);
+    // double currentAngleDeg = outtakeMotor.getCurrentPosition() /
+    // TICKS_PER_DEGREE;
+    // double targetAngleDeg = currentAngleDeg + errorDegrees;
 
-                if (targetAngleDeg > MAX_TURRET_ANGLE_DEG)
-                    targetAngleDeg = MAX_TURRET_ANGLE_DEG;
-                if (targetAngleDeg < -MAX_TURRET_ANGLE_DEG)
-                    targetAngleDeg = -MAX_TURRET_ANGLE_DEG;
+    // if (targetAngleDeg > MAX_TURRET_ANGLE_DEG)
+    // targetAngleDeg = MAX_TURRET_ANGLE_DEG;
+    // if (targetAngleDeg < -MAX_TURRET_ANGLE_DEG)
+    // targetAngleDeg = -MAX_TURRET_ANGLE_DEG;
 
-                turretTargetPos = (int) (targetAngleDeg * TICKS_PER_DEGREE);
-                found = true;
-                break;
-            }
-        }
+    // turretTargetPos = (int) (targetAngleDeg * TICKS_PER_DEGREE);
+    // found = true;
+    // break;
+    // }
+    // }
 
-        outtakeMotor.setTargetPosition(found ? turretTargetPos : outtakeMotor.getTargetPosition());
-        outtakeMotor.setPower(TURRET_TRACKING_POWER);
-    }
+    // outtakeMotor.setTargetPosition(found ? turretTargetPos :
+    // outtakeMotor.getTargetPosition());
+    // outtakeMotor.setPower(TURRET_TRACKING_POWER);
+    // }
 
-    public void resetTurret() {
-        turretTargetPos = 0;
-        outtakeMotor.setTargetPosition(0);
-        outtakeMotor.setPower(TURRET_RESET_POWER);
-    }
+    // public void resetTurret() {
+    // turretTargetPos = 0;
+    // outtakeMotor.setTargetPosition(0);
+    // outtakeMotor.setPower(TURRET_RESET_POWER);
+    // }
 
-    public int getOuttakeMotorPosition() {
-        return outtakeMotor.getCurrentPosition();
-    }
+    // public int getOuttakeMotorPosition() {
+    // return outtakeMotor.getCurrentPosition();
+    // }
 
     public int getTurretTargetPos() {
         return turretTargetPos;
     }
 
     public double getVelocity() {
-        return shootMotor.getVelocity();
+        return (shootMotor.getVelocity() + shootMotor2.getVelocity()) / 2;
     }
 
     public void displayTelemetry(Telemetry telemetry) {
@@ -252,7 +247,7 @@ public class OuttakeSubsystem {
         } else {
             telemetry.addLine("<i>Stopped</i>");
         }
-        telemetry.addData("Outtake Pos", getOuttakeMotorPosition());
+        // telemetry.addData("Outtake Pos", getOuttakeMotorPosition());
         telemetry.addData("Target Power", "%.2f", getTargetBasePower());
         telemetry.addData("Target Velocity", "%.0f", getTargetBasePower() * MAX_VELOCITY);
         telemetry.addData("ShootMotor Velocity", getVelocity());

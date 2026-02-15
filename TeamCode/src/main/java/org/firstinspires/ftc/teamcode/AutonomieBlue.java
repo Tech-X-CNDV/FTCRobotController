@@ -309,7 +309,7 @@ public class AutonomieBlue extends OpMode {
         pathTimer.resetTimer();
         matchTimer.reset();
         outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(1.0);
+        outtakeSubsystem.SetShootMotorPower(0.75);
         dynamicAimStarted = false;
         PoseStorage.isRed = false;
         PoseStorage.allianceOffset = Math.toRadians(180);

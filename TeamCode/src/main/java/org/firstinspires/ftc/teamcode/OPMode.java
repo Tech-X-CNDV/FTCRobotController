@@ -225,7 +225,7 @@ public class OPMode extends OpMode {
                 // Force the Power (Manual P-Loop)
                 // We use a multiplier (2.0) to convert the error into motor power.
                 // If it doesn't turn, we increase this number.
-                double autoTurnPower = headingError * 1.2;
+                double autoTurnPower = headingError * 1.0;
 
                 // "POWER STEERING" LOCK:
                 follower.setTeleOpDrive(drive, strafe, autoTurnPower, false, angleToScore);
@@ -270,7 +270,7 @@ public class OPMode extends OpMode {
         if (gamepad2.dpadDownWasPressed())
             storageSubsystem.ResetStuck();
         if (gamepad2.dpadRightWasPressed())
-            storageSubsystem.setServoPos(storageSubsystem.getServoPos() > 0.8 ? 0.7 : 0.97);
+            storageSubsystem.setServoPos(storageSubsystem.getServoPos() > 0.8 ? 0.65 : 0.97);
         /*
          * Not used at the moment
          * if (gamepad2.bWasPressed() && foundPattern) {

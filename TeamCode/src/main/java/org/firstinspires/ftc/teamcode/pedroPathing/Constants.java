@@ -14,19 +14,20 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-// TODO: Recalibrate All Constants ASAP
-
 public class Constants {
         public static FollowerConstants followerConstants = new FollowerConstants()
                         .mass(11.2)
-                        .forwardZeroPowerAcceleration(-30.54985146673663)
-                        .lateralZeroPowerAcceleration(-86.09410951475061)
-                        // .translationalPIDFCoefficients(new PIDFCoefficients(0.6, 0, 0.05, 0.01))
-                        // .headingPIDFCoefficients(new PIDFCoefficients(1, 0,0.05,0.03))
-                        .translationalPIDFCoefficients(new PIDFCoefficients(0.20, 0, 0.090, 0.03))
-                        .headingPIDFCoefficients(new PIDFCoefficients(0.45, 0, 0.10, 0.01))
-                        // .headingPIDFCoefficients(new PIDFCoefficients(0.9, 0, 0.1, 0.02))
-                        .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.02, 0, 0.001, 0.6, 0.02))
+                        .forwardZeroPowerAcceleration(-34.20381022599874)
+                        .lateralZeroPowerAcceleration(-70.18430289749332)
+                        .translationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.03, 0.03))
+                        .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.03, 0.01))
+                        .useSecondaryTranslationalPIDF(true)
+                        .headingPIDFCoefficients(new PIDFCoefficients(1, 0, 0.02, 0.03))
+                        .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.1, 0.01))
+                        .useSecondaryHeadingPIDF(true)
+                        .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.03, 0, 0.0001, 0.1, 0.01))
+                        .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.04, 0, 0.003, 0.8, 0.003))
+                        .useSecondaryDrivePIDF(true)
                         .centripetalScaling(0.0005);
 
         public static MecanumConstants driveConstants = new MecanumConstants()
@@ -39,7 +40,7 @@ public class Constants {
                         .leftRearMotorDirection(DcMotorEx.Direction.REVERSE)
                         .rightFrontMotorDirection(DcMotorEx.Direction.FORWARD)
                         .rightRearMotorDirection(DcMotorEx.Direction.FORWARD)
-                        .xVelocity(73.6801109013595)
+                        .xVelocity(76.8154037355)
                         .yVelocity(58.709159310408474)
                         .useBrakeModeInTeleOp(true);
 
@@ -54,7 +55,7 @@ public class Constants {
 
         // public static PathConstraints pathConstraints = new PathConstraints(0.99,
         // 100, 1, 1);
-        public static PathConstraints pathConstraints = new PathConstraints(0.98, 200, 1, 1);
+        public static PathConstraints pathConstraints = new PathConstraints(0.99, 200, 1, 1);
 
         public static Follower createFollower(HardwareMap hardwareMap) {
                 return new FollowerBuilder(followerConstants, hardwareMap)

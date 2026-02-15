@@ -100,7 +100,7 @@ public class StorageSubsystem {
 
             case 1: // PHASE 2: RETRACT & INDEX SIMULTANEOUSLY
                 // Adjusted to 0.32s to give the Axon time to complete the full 0.6 arc
-                if (servoTimer.seconds() > 0.32) {
+                if (servoTimer.seconds() > 0.32) { // 0.32 aproape
                     servoArunc.setPosition(0.97); // Start returning to home
 
                     turns++;

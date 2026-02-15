@@ -70,16 +70,16 @@ public class AutoRedPartial extends OpMode {
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup1, getPick1))
                 .setConstantHeadingInterpolation(getPick1.getHeading())
-                .addPath(new BezierLine(getPick1, posGate))
-                .setConstantHeadingInterpolation(getPick1.getHeading())
-                .addPath(new BezierLine(posGate, openGate))
-                .setConstantHeadingInterpolation(getPick1.getHeading())
+                // .addPath(new BezierLine(getPick1, posGate))
+                // .setConstantHeadingInterpolation(getPick1.getHeading())
+                // .addPath(new BezierLine(posGate, openGate))
+                // .setConstantHeadingInterpolation(getPick1.getHeading())
                 .build();
 
         // path4: Return to Score 1 (Direct)
         path4 = follower.pathBuilder()
-                .addPath(new BezierLine(openGate, scorePose))
-                .setLinearHeadingInterpolation(openGate.getHeading(), scorePose.getHeading())
+                .addPath(new BezierLine(getPick1, scorePose))
+                .setLinearHeadingInterpolation(getPick1.getHeading(), scorePose.getHeading())
                 .build();
 
         // path5: Score to Pickup 2 Alignment
@@ -113,7 +113,7 @@ public class AutoRedPartial extends OpMode {
                 follower.followPath(path1, true);
                 outtakeSubsystem.AutoAngle();
                 outtakeSubsystem.SetShootMotorPower(1.0);
-                follower.setMaxPower(1);
+                follower.setMaxPower(0.8);
                 storageSubsystem.autoThrow = true;
                 setPathState(1);
                 break;
@@ -141,7 +141,7 @@ public class AutoRedPartial extends OpMode {
 
             case 3: // STAB/INTAKE 1 (Path 3)
                 if (!isBusy) {
-                    follower.setMaxPower(0.9);
+                    follower.setMaxPower(0.8);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path3);
                     setPathState(4);
@@ -186,7 +186,7 @@ public class AutoRedPartial extends OpMode {
             // ================= PICKUP 2 SEQUENCE =================
             case 7: // STAB/INTAKE 2 (Path 6)
                 if (!isBusy) {
-                    follower.setMaxPower(0.9);
+                    follower.setMaxPower(0.8);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path6);
                     setPathState(8);
@@ -219,6 +219,7 @@ public class AutoRedPartial extends OpMode {
                         storageSubsystem.ThrowAll();
                     } else {
                         intakeSubsytem.setPower(0);
+                        outtakeSubsystem.SetShootMotorPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path8, true); // Park
                         setPathState(15);
@@ -263,7 +264,7 @@ public class AutoRedPartial extends OpMode {
         pathTimer.resetTimer();
         matchTimer.reset();
         outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(1.0);
+        outtakeSubsystem.SetShootMotorPower(0.75);
         dynamicAimStarted = false;
         PoseStorage.isRed = true;
         PoseStorage.allianceOffset = 0;
