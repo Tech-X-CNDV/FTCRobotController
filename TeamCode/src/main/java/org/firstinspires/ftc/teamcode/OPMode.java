@@ -92,7 +92,7 @@ public class OPMode extends OpMode {
         outtakeSubsystem.InitOuttake();
 
         telemetry.addData("Status", "Initialized");
-        storageSubsystem.colorSensingEnabled = true; // Enable color sensing for TeleOp telemetry
+        storageSubsystem.colorSensingEnabled = false; // Enable color sensing for TeleOp telemetry
         telemetry.update();
     }
 

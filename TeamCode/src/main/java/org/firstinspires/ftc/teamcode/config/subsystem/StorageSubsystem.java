@@ -351,12 +351,12 @@ public class StorageSubsystem {
         telemetry.addData("Storage Pos", getPosition());
         telemetry.addData("Shooter Servo", getServoPos());
 
-        char color = idenColor();
-        String colorStr = "NONE";
-        if (color == 'G')
-            colorStr = "GREEN";
-        else if (color == 'P')
-            colorStr = "PURPLE";
-        telemetry.addData("Detected Artifact", colorStr);
+        // char color = idenColor();
+        // String colorStr = "NONE";
+        // if (color == 'G')
+        // colorStr = "GREEN";
+        // else if (color == 'P')
+        // colorStr = "PURPLE";
+        // telemetry.addData("Detected Artifact", colorStr);
     }
 }
