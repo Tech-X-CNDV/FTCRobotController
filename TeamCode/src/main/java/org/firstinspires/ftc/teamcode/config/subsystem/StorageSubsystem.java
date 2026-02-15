@@ -24,6 +24,7 @@ public class StorageSubsystem {
     private final ElapsedTime stuckTimer = new ElapsedTime();
     private final ElapsedTime recoveryTimer = new ElapsedTime();
     public boolean isStuck = false;
+    public boolean isManual = false;
 
     public enum RecoveryState {
         IDLE,
@@ -175,8 +176,10 @@ public class StorageSubsystem {
     }
 
     public void update() {
-        updateWatchdog();
-        updateRecovery();
+        if (!isManual) {
+            updateWatchdog();
+            updateRecovery();
+        }
         if (autoSort || colorSensingEnabled) {
             updateColor();
         }
@@ -264,11 +267,16 @@ public class StorageSubsystem {
     }
 
     public void ManualMove(double power) {
+        isManual = true;
+        isStuck = false;
+        recoveryState = RecoveryState.IDLE;
         storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         storageMotor.setPower(power);
     }
 
     public void RestoreAuto() {
+        isManual = false;
+        stuckTimer.reset();
         storageMotor.setTargetPosition(storageMotor.getCurrentPosition());
         storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
     }
