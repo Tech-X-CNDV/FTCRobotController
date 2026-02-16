@@ -19,12 +19,14 @@ public class StorageSubsystem {
     public static double STUCK_VELOCITY_THRESHOLD = 50.0; // ticks per second
     public static double STUCK_TIMEOUT_MS = 500.0; // 500ms before considering it stuck
     public static double RECOVERY_DELAY_MS = 250.0; // 250ms wait before retrying
-    public static int BUSY_TOLERANCE = 15; // Unified threshold for isBusy and Watchdog
+    public static int POSITION_TOLERANCE = 12; // Nominal threshold for firing accuracy
+    public static int WATCHDOG_THRESHOLD = 25; // Lenient threshold for watchdog disarming
 
     private final ElapsedTime stuckTimer = new ElapsedTime();
     private final ElapsedTime recoveryTimer = new ElapsedTime();
     public boolean isStuck = false;
     public boolean isManual = false;
+    private boolean watchdogArmed = false;
 
     public enum RecoveryState {
         IDLE,
@@ -78,9 +80,10 @@ public class StorageSubsystem {
         if (isBusy())
             return;
 
-        // We only increment if the code explicitly asks for a NEW movement
         servoArunc.setPosition(0.97);
-        setTarget(storageMotor.getCurrentPosition() + delta, power);
+        // Drift Prevention: Base new target on the INTENDED previous target, not
+        // physical spot.
+        setTarget(storageMotor.getTargetPosition() + delta, power);
     }
 
     public boolean autoThrow = false;
@@ -93,7 +96,7 @@ public class StorageSubsystem {
             case 0: // PHASE 1: FIRE
                 // Ensure indexer is dead-still before firing to prevent jams
                 if (!isBusy()) {
-                    servoArunc.setPosition(0.6);
+                    servoArunc.setPosition(0.65);
                     servoTimer.reset();
                     throwState = 1;
                 }
@@ -109,9 +112,8 @@ public class StorageSubsystem {
                         turns = 0;
                         throwState = 2; // Move to wrap-up
                     } else {
-                        // SPEED GAIN: We start the next ball move immediately.
-                        // The servo retracts while the motor is already bringing the next ball up.
-                        setTarget(storageMotor.getCurrentPosition() + 475, 1.0);
+                        // Drift Prevention: Base new target on the INTENDED previous target.
+                        setTarget(storageMotor.getTargetPosition() + 475, 1.0);
 
                         throwState = 0; // Jump back to Case 0 to wait for the next ball to arrive
                     }
@@ -188,9 +190,10 @@ public class StorageSubsystem {
     private void updateWatchdog() {
         // MONITOR IN ALL ACTIVE STATES: Idle, Returning, or Retrying.
         // If it jams during a recovery phase, we need to know!
-        if (storageMotor.isBusy() && !isStuck) {
-            // target. We now use the unified BUSY_TOLERANCE to eliminate dead-zones.
-            if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) < BUSY_TOLERANCE) {
+        if (storageMotor.isBusy() && !isStuck && watchdogArmed) {
+            // Watchdog disarms early (WATCHDOG_THRESHOLD) to avoid monitoring jitter.
+            if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) < WATCHDOG_THRESHOLD) {
+                watchdogArmed = false; // Move effectively completed, disarm.
                 stuckTimer.reset();
                 return;
             }
@@ -216,7 +219,7 @@ public class StorageSubsystem {
         int error = Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition());
 
         if (recoveryState == RecoveryState.RETURNING) {
-            if (error < BUSY_TOLERANCE) {
+            if (error < POSITION_TOLERANCE) {
                 recoveryState = RecoveryState.WAITING_FOR_RETRY;
                 recoveryTimer.reset();
             }
@@ -227,7 +230,7 @@ public class StorageSubsystem {
                 storageMotor.setPower(lastMovePower);
             }
         } else if (recoveryState == RecoveryState.RETRYING) {
-            if (error < BUSY_TOLERANCE) {
+            if (error < POSITION_TOLERANCE) {
                 recoveryState = RecoveryState.IDLE;
                 isStuck = false;
             }
@@ -244,6 +247,7 @@ public class StorageSubsystem {
         storageMotor.setTargetPosition(target);
         storageMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         storageMotor.setPower(power);
+        watchdogArmed = true; // NEW MOVEMENT: Start monitoring
     }
 
     public void Abort() {
@@ -253,6 +257,7 @@ public class StorageSubsystem {
         turns = 0; // Reset ball count
         recoveryState = RecoveryState.IDLE;
         isStuck = false;
+        watchdogArmed = false;
         servoArunc.setPosition(0.97); // Reset flicker to home
 
         // Kill motor movement and lock it at current position
@@ -263,12 +268,14 @@ public class StorageSubsystem {
 
     public void ResetStuck() {
         isStuck = false;
+        watchdogArmed = false;
         stuckTimer.reset();
     }
 
     public void ManualMove(double power) {
         isManual = true;
         isStuck = false;
+        watchdogArmed = false;
         recoveryState = RecoveryState.IDLE;
         storageMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         storageMotor.setPower(power);
@@ -332,9 +339,17 @@ public class StorageSubsystem {
         if (recoveryState != RecoveryState.IDLE)
             return true;
 
-        // Unified "Close enough" check: if we are within BUSY_TOLERANCE, we aren't
-        // busy.
-        if (Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition()) < BUSY_TOLERANCE) {
+        int error = Math.abs(storageMotor.getTargetPosition() - storageMotor.getCurrentPosition());
+
+        // OPTION 1: Target reached within nominal precision
+        if (error < POSITION_TOLERANCE) {
+            return false;
+        }
+
+        // OPTION 2: Adaptive Readiness (Close enough and stopped)
+        // If we are within the watchdog window and the motor has effectively stopped,
+        // we allow firing to prevent mechanical friction from hanging the sequence.
+        if (error < WATCHDOG_THRESHOLD && Math.abs(ReturnVelocity()) < STUCK_VELOCITY_THRESHOLD) {
             return false;
         }
 

@@ -32,7 +32,7 @@ public class OuttakeSubsystem {
     // Power Distance Scaling for shoot motor
     private final double MIN_SHOOT_POWER = 0.47;
     private final double MAX_SHOOT_POWER = 1.0;
-    private final double POWER_DISTANCE_SCALING = 0.0012; // Adjust this to tune how hard it shoots
+    private final double POWER_DISTANCE_SCALING = 0.0011; // Adjust this to tune how hard it shoots
     public static double MAX_VELOCITY = 2680; // Ticks per second at 1.0 power. TUNE THIS!
     private final double VOLTAGE = 13.4; // Fresh battery
     private double filteredVoltage = 13.0; // Start at a healthy middle ground
