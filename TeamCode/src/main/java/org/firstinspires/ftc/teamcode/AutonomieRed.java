@@ -323,7 +323,7 @@ public class AutonomieRed extends OpMode {
         pathTimer.resetTimer();
         matchTimer.reset();
         outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(0.7);
+        outtakeSubsystem.SetShootMotorPower(0.72);
         dynamicAimStarted = false;
         PoseStorage.isRed = true;
         PoseStorage.allianceOffset = 0;
@@ -352,7 +352,7 @@ public class AutonomieRed extends OpMode {
             outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
         } else {
             // High-power spin-up while traveling to first position
-            outtakeSubsystem.SetShootMotorPower(0.7);
+            outtakeSubsystem.SetShootMotorPower(0.72);
             outtakeSubsystem.AutoAngle();
         }
 

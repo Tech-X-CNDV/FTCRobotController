@@ -12,7 +12,7 @@ public class OuttakeSubsystem {
     private final DcMotorEx shootMotor, shootMotor2;
     private final Servo outtakeAngle;
 
-    public static double DEFAULT_SHOOT_POWER = 0.85;
+    public static double DEFAULT_SHOOT_POWER = 0.7;
     private boolean shootMotorEnabled = false;
     private double targetBasePower = 0;
     public static double INITIAL_ANGLE = 0.9;
@@ -32,8 +32,8 @@ public class OuttakeSubsystem {
     // Power Distance Scaling for shoot motor
     private final double MIN_SHOOT_POWER = 0.47;
     private final double MAX_SHOOT_POWER = 1.0;
-    private final double POWER_DISTANCE_SCALING = 0.0011; // Adjust this to tune how hard it shoots
-    public static double MAX_VELOCITY = 2680; // Ticks per second at 1.0 power. TUNE THIS!
+    private final double POWER_DISTANCE_SCALING = 0.0012; // Adjust this to tune how hard it shoots
+    public static double MAX_VELOCITY = 2550; // Ticks per second at 1.0 power. TUNE THIS!
     private final double VOLTAGE = 13.4; // Fresh battery
     private double filteredVoltage = 13.0; // Start at a healthy middle ground
     private final double LPF_COEFFICIENT = 0.95; // 0.95 means it keeps 95% of old value, 5% of new
@@ -167,7 +167,7 @@ public class OuttakeSubsystem {
         double targetVelocity = targetBasePower * MAX_VELOCITY;
         double currentVelocity = getVelocity();
         return shootMotorEnabled
-                && (currentVelocity >= targetVelocity * 0.95 && currentVelocity <= targetVelocity * 1.05);
+                && (currentVelocity >= targetVelocity * 0.90 && currentVelocity <= targetVelocity * 1.1);
     }
 
     public void IncreaseAngle() {

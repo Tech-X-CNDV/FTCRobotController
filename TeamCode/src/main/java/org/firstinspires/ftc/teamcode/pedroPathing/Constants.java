@@ -19,14 +19,14 @@ public class Constants {
                         .mass(11.2)
                         .forwardZeroPowerAcceleration(-34.20381022599874)
                         .lateralZeroPowerAcceleration(-70.18430289749332)
-                        .translationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.03, 0.03))
-                        .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.03, 0.01))
+                        .translationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.01, 0.02))
+                        .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.05, 0))
                         .useSecondaryTranslationalPIDF(true)
-                        .headingPIDFCoefficients(new PIDFCoefficients(1, 0, 0.02, 0.03))
-                        .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.1, 0.01))
+                        .headingPIDFCoefficients(new PIDFCoefficients(1, 0, 0.02, 0.02))
+                        .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.1, 0))
                         .useSecondaryHeadingPIDF(true)
-                        .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.03, 0, 0.0001, 0.1, 0.01))
-                        .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.04, 0, 0.003, 0.8, 0.003))
+                        .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.1, 0, 0.00035, 0.6, 0.015))
+                        .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.008, 0, 0.00035, 0.6, 0.02))
                         .useSecondaryDrivePIDF(true)
                         .centripetalScaling(0.0005);
 
@@ -55,7 +55,7 @@ public class Constants {
 
         // public static PathConstraints pathConstraints = new PathConstraints(0.99,
         // 100, 1, 1);
-        public static PathConstraints pathConstraints = new PathConstraints(0.995, 200, 1, 1);
+        public static PathConstraints pathConstraints = new PathConstraints(0.95, 200, 1, 0.8);
 
         public static Follower createFollower(HardwareMap hardwareMap) {
                 return new FollowerBuilder(followerConstants, hardwareMap)

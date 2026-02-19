@@ -308,7 +308,7 @@ public class AutonomieBlue extends OpMode {
         pathTimer.resetTimer();
         matchTimer.reset();
         outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(0.7);
+        outtakeSubsystem.SetShootMotorPower(0.72);
         dynamicAimStarted = false;
         PoseStorage.isRed = false;
         PoseStorage.allianceOffset = Math.toRadians(180);
@@ -337,7 +337,7 @@ public class AutonomieBlue extends OpMode {
             outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
         } else {
             // High-power spin-up while traveling to first position
-            outtakeSubsystem.SetShootMotorPower(0.7);
+            outtakeSubsystem.SetShootMotorPower(0.72);
             outtakeSubsystem.AutoAngle();
         }
 

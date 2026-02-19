@@ -17,8 +17,8 @@ import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@Autonomous(name = "AutoMicRed")
-public class AutoMic extends OpMode {
+@Autonomous(name = "AutoMicBlue")
+public class AutoMicBlue extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer;
     private int pathState;
@@ -32,8 +32,8 @@ public class AutoMic extends OpMode {
     // Pose Constants for the Blue Side
     private Pose startPose = new Pose(84.47085714285714, 11.45599999999999, Math.toRadians(69));
     private final Pose scorePose = new Pose(84.47085714285714, 13.05599999999999, Math.toRadians(69));
-    private final Pose pickup3 = FieldPoses.PICKUP_3.mirror();
-    private Pose getPickup3 = FieldPoses.GET_PICK_3.mirror();
+    private final Pose pickup3 = FieldPoses.PICKUP_3;
+    private Pose getPickup3 = FieldPoses.GET_PICK_3;
     private final Pose parkPose = new Pose(108.17028571428573, 10.630857142857149, Math.toRadians(0));
 
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8;
@@ -42,9 +42,9 @@ public class AutoMic extends OpMode {
     public void buildPaths() {
         path1 = follower.pathBuilder()
                 // .addPath(new BezierCurve(startPose, new Pose(58.5, 97.2), scorePose))
-                .addPath(new BezierLine(startPose, pickup3))
+                .addPath(new BezierLine(startPose.mirror(), pickup3))
                 // .setConstantHeadingInterpolation(Math.toRadians(89))
-                .setLinearHeadingInterpolation(startPose.getHeading(), pickup3.getHeading())
+                .setLinearHeadingInterpolation(startPose.mirror().getHeading(), pickup3.getHeading())
                 .build();
         path2 = follower.pathBuilder()
                 // .addPath(new BezierCurve(startPose, new Pose(58.5, 97.2), scorePose))
@@ -54,15 +54,15 @@ public class AutoMic extends OpMode {
                 .build();
         path3 = follower.pathBuilder()
                 // .addPath(new BezierCurve(startPose, new Pose(58.5, 97.2), scorePose))
-                .addPath(new BezierLine(getPickup3, scorePose))
+                .addPath(new BezierLine(getPickup3, scorePose.mirror()))
                 // .setConstantHeadingInterpolation(Math.toRadians(89))
-                .setLinearHeadingInterpolation(getPickup3.getHeading(), scorePose.getHeading())
+                .setLinearHeadingInterpolation(getPickup3.getHeading(), scorePose.mirror().getHeading())
                 .build();
         path4 = follower.pathBuilder()
                 // .addPath(new BezierCurve(startPose, new Pose(58.5, 97.2), scorePose))
-                .addPath(new BezierLine(scorePose, parkPose))
+                .addPath(new BezierLine(scorePose.mirror(), parkPose.mirror()))
                 // .setConstantHeadingInterpolation(Math.toRadians(89))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
+                .setLinearHeadingInterpolation(scorePose.mirror().getHeading(), parkPose.mirror().getHeading())
                 .build();
     }
 
@@ -151,11 +151,10 @@ public class AutoMic extends OpMode {
         actionTimer = new Timer();
         follower = Constants.createFollower(hardwareMap);
         getPickup3 = new Pose(getPickup3.getX(), getPickup3.getY() + 2, getPickup3.getHeading());
-        pickup3.setHeading(Math.toRadians(50));
-        PoseStorage.isRed = true;
-        PoseStorage.allianceOffset = 0;
+        PoseStorage.isRed = false;
+        PoseStorage.allianceOffset = Math.toRadians(180);
         buildPaths();
-        follower.setStartingPose(startPose);
+        follower.setStartingPose(startPose.mirror());
     }
 
     @Override
@@ -163,7 +162,7 @@ public class AutoMic extends OpMode {
         pathTimer.resetTimer();
         matchTimer.reset();
         outtakeSubsystem.SetAutoAim(true);
-        PoseStorage.isRed = true; // AutoMic is currently Red
+        PoseStorage.isRed = false; // AutoMic is currently Red
         setPathState(0);
     }
 
@@ -174,7 +173,7 @@ public class AutoMic extends OpMode {
         outtakeSubsystem.update();
 
         Pose currentPose = follower.getPose();
-        PoseStorage.autoPoseRed = currentPose;
+        PoseStorage.autoPoseBlue = currentPose;
 
         // --- 30s FAILSAFE GUARDIAN ---
         if (matchTimer.seconds() > 29.8) {
@@ -182,8 +181,8 @@ public class AutoMic extends OpMode {
             follower.setMaxPower(0);
             outtakeSubsystem.SetShootMotorPower(0);
             intakeSubsytem.setPower(0);
-            PoseStorage.isRed = true;
-            PoseStorage.autoPoseRed = currentPose;
+            PoseStorage.isRed = false;
+            PoseStorage.autoPoseBlue = currentPose;
             requestOpModeStop();
         }
 

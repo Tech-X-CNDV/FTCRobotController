@@ -293,7 +293,7 @@ public class AutoRedPartial extends OpMode {
             outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
         } else {
             // High-power spin-up while traveling to first position
-            outtakeSubsystem.SetShootMotorPower(1.0);
+            outtakeSubsystem.SetShootMotorPower(0.72);
             outtakeSubsystem.AutoAngle();
         }
 
