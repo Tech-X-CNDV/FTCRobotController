@@ -292,8 +292,7 @@ public class OPMode extends OpMode {
 
         // Manual Storage Override
         if (gamepad2.left_trigger_pressed) {
-            if (storageSubsystem.autoThrow)
-                storageSubsystem.Abort();
+            storageSubsystem.Abort(); // Master Override: Stops everything (Recovery, Auto-Throw, Auto-Sort)
             storageSubsystem.ManualMove(gamepad2.right_stick_x * 0.4);
             manual = true;
         } else if (manual) {

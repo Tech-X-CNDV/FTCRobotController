@@ -72,11 +72,6 @@ public class StorageSubsystem {
     private int lastTarget = 0;
 
     public void MoveRelative(int delta, double power) {
-        // OVERRIDE: If the user clicks, they want movement. Cancel any stuck recovery.
-        if (isStuck || recoveryState != RecoveryState.IDLE) {
-            ResetStuck();
-        }
-
         if (isBusy())
             return;
 
