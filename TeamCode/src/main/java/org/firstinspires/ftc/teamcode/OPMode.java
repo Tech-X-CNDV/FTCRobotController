@@ -58,6 +58,8 @@ public class OPMode extends OpMode {
     private final Pose LOCK_POSE = FieldPoses.LOCK_POSE;
     Pose targetPose;
 
+    private List<LynxModule> allHubs;
+
     public void driveToPose(Pose targetPose) {
         // Build the path using CURRENT position at this exact millisecond
         PathChain dynamicPath = follower.pathBuilder()
@@ -78,9 +80,9 @@ public class OPMode extends OpMode {
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
 
-        List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
+        allHubs = hardwareMap.getAll(LynxModule.class);
         for (LynxModule hub : allHubs) {
-            hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
+            hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         }
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
@@ -115,8 +117,17 @@ public class OPMode extends OpMode {
     boolean reverseIntake = false;
     double loopTime;
 
+    private double telemetryTimer = 0;
+
     @Override
     public void loop() {
+        if (allHubs == null) {
+            allHubs = hardwareMap.getAll(LynxModule.class);
+        }
+        for (LynxModule hub : allHubs) {
+            hub.clearBulkCache();
+        }
+
         double currentTime = timer.milliseconds();
         loopTime = currentTime - lastTime;
         lastTime = currentTime;
@@ -140,7 +151,10 @@ public class OPMode extends OpMode {
         // if (turretLockEnabled)
         // outtakeSubsystem.updateTurretLock(targetTagId);
 
-        displayTelemetry(loopTime);
+        if (currentTime > telemetryTimer + 100) {
+            displayTelemetry(loopTime);
+            telemetryTimer = currentTime;
+        }
     }
 
     private void handleDriverControls() {
@@ -173,8 +187,8 @@ public class OPMode extends OpMode {
 
         // EMERGENCY FIELD-CENTRIC RESET (Start Button)
         if (gamepad1.startWasPressed()) {
-            follower.setPose(
-                    new Pose(follower.getPose().getX(), follower.getPose().getY(), PoseStorage.allianceOffset));
+            Pose currentPose = follower.getPose();
+            follower.setPose(new Pose(currentPose.getX(), currentPose.getY(), PoseStorage.allianceOffset));
             gamepad1.rumbleBlips(2);
         }
 
