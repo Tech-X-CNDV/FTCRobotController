@@ -15,6 +15,8 @@ public class OuttakeSubsystem {
     public static double DEFAULT_SHOOT_POWER = 0.7;
     private boolean shootMotorEnabled = false;
     private double targetBasePower = 0;
+    private double manualPowerOffset = 0;
+    private double manualAngleOffset = 0;
     public static double INITIAL_ANGLE = 0.9;
 
     // Maybe used at a later time
@@ -101,8 +103,8 @@ public class OuttakeSubsystem {
         // 1. CALCULATE DYNAMIC POWER
         double distance = Math.hypot(deltaX, deltaY);
 
-        // Linear formula: Power = MinPower + (Dist * Scale)
-        double basePower = MIN_SHOOT_POWER + (distance * POWER_DISTANCE_SCALING);
+        // Linear formula: Power = MinPower + (Dist * Scale) + ManualOffset
+        double basePower = MIN_SHOOT_POWER + (distance * POWER_DISTANCE_SCALING) + manualPowerOffset;
 
         // Apply Voltage Compensation
         double voltageComp = VOLTAGE / filteredVoltage;
@@ -117,7 +119,7 @@ public class OuttakeSubsystem {
         // Apply Voltage Compensation to the static AUTO_SHOOT_POWER
         double voltageComp = VOLTAGE / filteredVoltage;
 
-        targetBasePower = AUTO_SHOOT_POWER * voltageComp;
+        targetBasePower = (AUTO_SHOOT_POWER + manualPowerOffset) * voltageComp;
 
         // Clamp to [MIN, MAX]
         targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));
@@ -126,8 +128,9 @@ public class OuttakeSubsystem {
     public void updateAutoAimAngle(double deltaX, double deltaY) {
         double distance = Math.hypot(deltaX, deltaY);
 
-        // Map distance to angle: 0.5 (close) to 0.9 (far)
-        double angle = CLOSE_ANGLE + (distance - CLOSE_DIST) * (FAR_ANGLE - CLOSE_ANGLE) / (FAR_DIST - CLOSE_DIST);
+        // Map distance to angle: 0.15 (close) to 0.9 (far) + ManualOffset
+        double angle = CLOSE_ANGLE + (distance - CLOSE_DIST) * (FAR_ANGLE - CLOSE_ANGLE) / (FAR_DIST - CLOSE_DIST)
+                + manualAngleOffset;
 
         // Clamp to [0.5, 0.9]
         angle = Math.max(CLOSE_ANGLE, Math.min(FAR_ANGLE, angle));
@@ -162,22 +165,36 @@ public class OuttakeSubsystem {
         return targetBasePower;
     }
 
+    public void setManualPowerOffset(double offset) {
+        this.manualPowerOffset = offset;
+    }
+
+    public double getManualPowerOffset() {
+        return manualPowerOffset;
+    }
+
+    public double getManualAngleOffset() {
+        return manualAngleOffset;
+    }
+
+    public void setManualAngleOffset(double offset) {
+        this.manualAngleOffset = offset;
+    }
+
+    public void IncreaseAngleOffset() {
+        this.manualAngleOffset += 0.05;
+    }
+
+    public void DecreaseAngleOffset() {
+        this.manualAngleOffset -= 0.05;
+    }
+
     public boolean isReadyToFire() {
         // Ready if enabled and velocity is within 5% of our expected target velocity
         double targetVelocity = targetBasePower * MAX_VELOCITY;
         double currentVelocity = getVelocity();
         return shootMotorEnabled
                 && (currentVelocity >= targetVelocity * 0.90 && currentVelocity <= targetVelocity * 1.1);
-    }
-
-    public void IncreaseAngle() {
-        if (outtakeAngle.getPosition() < 1)
-            outtakeAngle.setPosition(outtakeAngle.getPosition() + 0.1);
-    }
-
-    public void DecreaseAngle() {
-        if (outtakeAngle.getPosition() > 0)
-            outtakeAngle.setPosition(outtakeAngle.getPosition() - 0.1);
     }
 
     public void AutoAngle() {

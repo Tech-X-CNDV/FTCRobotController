@@ -318,9 +318,16 @@ public class OPMode extends OpMode {
         // Outtake Servo Angle (currently overwritten by autoaim)
         if (!storageSubsystem.autoSort && !storageSubsystem.autoThrow) {
             if (gamepad2.leftBumperWasReleased())
-                outtakeSubsystem.IncreaseAngle();
+                outtakeSubsystem.IncreaseAngleOffset();
             else if (gamepad2.rightBumperWasReleased())
-                outtakeSubsystem.DecreaseAngle();
+                outtakeSubsystem.DecreaseAngleOffset();
+        }
+
+        // Manual Shooter Power Offset (Persistent)
+        if (Math.abs(gamepad2.left_stick_y) > 0.1) {
+            double currentOffset = outtakeSubsystem.getManualPowerOffset();
+            // Up = Positive Power Boost (gamepad Y is reversed)
+            outtakeSubsystem.setManualPowerOffset(currentOffset - (gamepad2.left_stick_y * 0.002));
         }
     }
 
@@ -343,6 +350,8 @@ public class OPMode extends OpMode {
          * targetTagId + ")" : "OFF");
          */
         outtakeSubsystem.displayTelemetry(telemetry);
+        telemetry.addData("> Power Offset", "%.3f (L-Stick Y)", outtakeSubsystem.getManualPowerOffset());
+        telemetry.addData("> Angle Offset", "%.3f (Bumpers)", outtakeSubsystem.getManualAngleOffset());
         storageSubsystem.displayTelemetry(telemetry);
 
         // --- SENSORS & PATTERNS ---
