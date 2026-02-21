@@ -61,9 +61,6 @@ public class OuttakeSubsystem {
         targetBasePower = DEFAULT_SHOOT_POWER;
         filteredVoltage = voltageSensor.getVoltage();
 
-        targetBasePower = DEFAULT_SHOOT_POWER;
-        filteredVoltage = voltageSensor.getVoltage();
-
         shootMotor.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
@@ -120,6 +117,16 @@ public class OuttakeSubsystem {
         double voltageComp = VOLTAGE / filteredVoltage;
 
         targetBasePower = (AUTO_SHOOT_POWER + manualPowerOffset) * voltageComp;
+
+        // Clamp to [MIN, MAX]
+        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));
+    }
+
+    public void updateFixedPower(double basePower) {
+        // Apply Voltage Compensation to the provided base power
+        double voltageComp = VOLTAGE / filteredVoltage;
+
+        targetBasePower = (basePower + manualPowerOffset) * voltageComp;
 
         // Clamp to [MIN, MAX]
         targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));

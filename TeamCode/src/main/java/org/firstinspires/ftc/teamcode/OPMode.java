@@ -42,6 +42,7 @@ public class OPMode extends OpMode {
     char[] charPattern;
     boolean turretLockEnabled = false;
     boolean chassisLockEnabled = false;
+    boolean smallBasketLockEnabled = false;
     private double manualHeadingOffset = 0;
     // int targetTagId = 1; // Default tag to track, can be adjusted
     // public static double kP_CHASSIS_TURN = -0.012; // Slight boost from -0.01
@@ -56,6 +57,7 @@ public class OPMode extends OpMode {
     private final Pose SCORE_POSE_RED = FieldPoses.SCORE.mirror();
     private final Pose SCORE_POSE_BLUE = FieldPoses.SCORE;
     private final Pose LOCK_POSE = FieldPoses.LOCK_POSE;
+    private final Pose LOW_BASKET_POSE = FieldPoses.LOW_BASKET_POSE;
     Pose targetPose;
 
     private List<LynxModule> allHubs;
@@ -174,11 +176,31 @@ public class OPMode extends OpMode {
         // CHASSIS LOCK TOGGLE
         if (gamepad1.xWasPressed()) {
             chassisLockEnabled = !chassisLockEnabled;
-            outtakeSubsystem.SetAutoAim(chassisLockEnabled);
+            if (chassisLockEnabled)
+                smallBasketLockEnabled = false;
+            outtakeSubsystem.SetAutoAim(chassisLockEnabled || smallBasketLockEnabled);
 
             if (chassisLockEnabled) {
+                targetPose = PoseStorage.isRed ? LOCK_POSE.mirror() : LOCK_POSE;
                 gamepad1.rumble(300); // Confirmation buzz
-            } else {
+            } else if (!smallBasketLockEnabled) {
+                // SYNC HEADING on release to prevent the "Joystick Jump"
+                Pose current = follower.getPose();
+                follower.setPose(new Pose(current.getX(), current.getY(), current.getHeading()));
+            }
+        }
+
+        // SMALL BASKET LOCK TOGGLE
+        if (gamepad1.bWasPressed()) {
+            smallBasketLockEnabled = !smallBasketLockEnabled;
+            if (smallBasketLockEnabled)
+                chassisLockEnabled = false;
+            outtakeSubsystem.SetAutoAim(chassisLockEnabled || smallBasketLockEnabled);
+
+            if (smallBasketLockEnabled) {
+                targetPose = PoseStorage.isRed ? LOW_BASKET_POSE.mirror() : LOW_BASKET_POSE;
+                gamepad1.rumble(300); // Confirmation buzz
+            } else if (!chassisLockEnabled) {
                 // SYNC HEADING on release to prevent the "Joystick Jump"
                 Pose current = follower.getPose();
                 follower.setPose(new Pose(current.getX(), current.getY(), current.getHeading()));
@@ -210,12 +232,12 @@ public class OPMode extends OpMode {
                 turn *= slowModeMultiplier;
             }
 
-            if (chassisLockEnabled) {
+            if (chassisLockEnabled || smallBasketLockEnabled) {
                 if (Math.abs(gamepad1.right_stick_x) > 0.1) {
                     manualHeadingOffset -= gamepad1.right_stick_x * 0.015; // Tunable sensitivity
                 }
 
-                // Determine lock target based on Alliance
+                // Determine lock target based on Alliance (targetPose is set in toggles)
                 double deltaX = targetPose.getX() - follower.getPose().getX();
                 double deltaY = targetPose.getY() - follower.getPose().getY();
                 double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
@@ -228,8 +250,13 @@ public class OPMode extends OpMode {
                  */
 
                 // Subsystem logic
-                outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
-                outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
+                if (smallBasketLockEnabled) {
+                    outtakeSubsystem.updateFixedPower(0.75);
+                    outtakeSubsystem.SetAngle(1);
+                } else {
+                    outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
+                    outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
+                }
 
                 // Calculate Heading Error
                 double currentHeading = follower.getPose().getHeading();
@@ -350,8 +377,9 @@ public class OPMode extends OpMode {
         // --- GAMEPAD 1: DRIVER ---
         telemetry.addLine("=== GAMEPAD 1: DRIVER ===");
         telemetry.addData("> Drive Mode", slowMode ? "SLOW (x" + slowModeMultiplier + ")" : "NORMAL");
-        telemetry.addData("> Chassis Lock", chassisLockEnabled ? "ACTIVE (Offset: %.1f°)" : "OFF",
-                Math.toDegrees(manualHeadingOffset));
+        telemetry.addData("> Chassis Lock", chassisLockEnabled ? "ACTIVE (Low Basket: OFF)"
+                : (smallBasketLockEnabled ? "ACTIVE (Low Basket: ON)" : "OFF"));
+        telemetry.addData("> Lock Offset", "%.1f°", Math.toDegrees(manualHeadingOffset));
         intakeSubsytem.displayTelemetry(telemetry);
         telemetry.addData("> Drive Pos", "X:%.1f Y:%.1f H:%.1f", currentPose.getX(), currentPose.getY(),
                 Math.toDegrees(currentPose.getHeading()));

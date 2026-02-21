@@ -70,10 +70,10 @@ public class AutoRedPartial extends OpMode {
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup1, getPick1))
                 .setConstantHeadingInterpolation(getPick1.getHeading())
-                // .addPath(new BezierLine(getPick1, posGate))
-                // .setConstantHeadingInterpolation(getPick1.getHeading())
-                // .addPath(new BezierLine(posGate, openGate))
-                // .setConstantHeadingInterpolation(getPick1.getHeading())
+                .addPath(new BezierLine(getPick1, posGate))
+                .setConstantHeadingInterpolation(getPick1.getHeading())
+                .addPath(new BezierLine(posGate, openGate))
+                .setConstantHeadingInterpolation(getPick1.getHeading())
                 .build();
 
         // path4: Return to Score 1 (Direct)
