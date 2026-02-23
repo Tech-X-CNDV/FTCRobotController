@@ -44,6 +44,7 @@ public class OPMode extends OpMode {
     boolean chassisLockEnabled = false;
     boolean smallBasketLockEnabled = false;
     private double manualHeadingOffset = 0;
+    private double manualTurretOffset = 0;
     // int targetTagId = 1; // Default tag to track, can be adjusted
     // public static double kP_CHASSIS_TURN = -0.012; // Slight boost from -0.01
     // baseline
@@ -88,7 +89,7 @@ public class OPMode extends OpMode {
         }
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
-        storageSubsystem.InitStorage();
+        // storageSubsystem.InitStorage();
 
         intakeSubsytem = new IntakeSubsytem(hardwareMap);
         intakeSubsytem.InitIntake();
@@ -97,7 +98,8 @@ public class OPMode extends OpMode {
         outtakeSubsystem.InitOuttake();
 
         telemetry.addData("Status", "Initialized");
-        storageSubsystem.colorSensingEnabled = false; // Enable color sensing for TeleOp telemetry
+        // storageSubsystem.colorSensingEnabled = false; // Enable color sensing for
+        // TeleOp telemetry
         telemetry.update();
     }
 
@@ -136,7 +138,7 @@ public class OPMode extends OpMode {
 
         // Call Updates once per loop
         follower.update();
-        storageSubsystem.update();
+        // storageSubsystem.update();
         outtakeSubsystem.update();
         telemetryM.update();
 
@@ -145,13 +147,15 @@ public class OPMode extends OpMode {
         handleOperatorControls();
 
         // Update Auto Systems
-        if (storageSubsystem.autoSort)
-            storageSubsystem.PatternSortAuto(charPattern);
-        else if (!manual && storageSubsystem.autoThrow)
-            storageSubsystem.ThrowAll(0.32);
+        /*
+         * if (storageSubsystem.autoSort)
+         * storageSubsystem.PatternSortAuto(charPattern);
+         * else if (!manual && storageSubsystem.autoThrow)
+         * storageSubsystem.ThrowAll(0.32);
+         */
 
-        // if (turretLockEnabled)
-        // outtakeSubsystem.updateTurretLock(targetTagId);
+        if (turretLockEnabled)
+            outtakeSubsystem.updateTurretLock(follower.getPose(), targetPose, manualTurretOffset);
 
         if (currentTime > telemetryTimer + 100) {
             displayTelemetry(loopTime);
@@ -283,16 +287,24 @@ public class OPMode extends OpMode {
         }
 
         // 4. SUBSYSTEMS (Intake & Recovery Logic)
-        if (storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.WAITING_FOR_RETRY
-                || storageSubsystem.recoveryState == StorageSubsystem.RecoveryState.RETURNING) {
-            intakeSubsytem.setPower(1);
-        } else {
-            intakeSubsytem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
-        }
+        /*
+         * if (storageSubsystem.recoveryState ==
+         * StorageSubsystem.RecoveryState.WAITING_FOR_RETRY
+         * || storageSubsystem.recoveryState ==
+         * StorageSubsystem.RecoveryState.RETURNING) {
+         * intakeSubsytem.setPower(1);
+         * } else {
+         * intakeSubsytem.setPower(reverseIntake ? -gamepad1.right_trigger :
+         * gamepad1.right_trigger);
+         * }
+         */
+        intakeSubsytem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
 
-        if (gamepad1.left_trigger_pressed) {
-            storageSubsystem.MoveRelative(475, 1);
-        }
+        /*
+         * if (gamepad1.left_trigger_pressed) {
+         * storageSubsystem.MoveRelative(475, 1);
+         * }
+         */
 
         if (gamepad1.dpadUpWasPressed()) {
             charPattern = patterns[0].toCharArray();
@@ -313,10 +325,13 @@ public class OPMode extends OpMode {
 
     private void handleOperatorControls() {
         // Storage & Indexing
-        if (gamepad2.dpadDownWasPressed())
-            storageSubsystem.ResetStuck();
-        if (gamepad2.dpadRightWasPressed())
-            storageSubsystem.setServoPos(storageSubsystem.getServoPos() > 0.8 ? 0.65 : 0.97);
+        /*
+         * if (gamepad2.dpadDownWasPressed())
+         * storageSubsystem.ResetStuck();
+         * if (gamepad2.dpadRightWasPressed())
+         * storageSubsystem.setServoPos(storageSubsystem.getServoPos() > 0.8 ? 0.65 :
+         * 0.97);
+         */
         /*
          * Not used at the moment
          * if (gamepad2.bWasPressed() && foundPattern) {
@@ -324,40 +339,47 @@ public class OPMode extends OpMode {
          * storageSubsystem.autoSort = true;
          * }
          */
-        if (gamepad2.xWasPressed()) {
-            storageSubsystem.servoTimer.reset();
-            storageSubsystem.autoThrow = true;
-        }
-        if (gamepad2.dpadUpWasPressed())
-            storageSubsystem.MoveRelative(475, 1);
+        /*
+         * if (gamepad2.xWasPressed()) {
+         * storageSubsystem.servoTimer.reset();
+         * storageSubsystem.autoThrow = true;
+         * }
+         * if (gamepad2.dpadUpWasPressed())
+         * storageSubsystem.MoveRelative(475, 1);
+         */
 
         // Manual Storage Override
         if (gamepad2.left_trigger_pressed) {
-            storageSubsystem.Abort(); // Master Override: Stops everything (Recovery, Auto-Throw, Auto-Sort)
-            storageSubsystem.ManualMove(gamepad2.right_stick_x * 0.4);
+            // storageSubsystem.Abort(); // Master Override: Stops everything (Recovery,
+            // Auto-Throw, Auto-Sort)
+            // storageSubsystem.ManualMove(gamepad2.right_stick_x * 0.4);
             manual = true;
-        } else if (manual) {
-            storageSubsystem.RestoreAuto();
-            manual = false;
+        } else {
+            if (manual) {
+                // storageSubsystem.RestoreAuto();
+                manual = false;
+            }
+            if (turretLockEnabled && Math.abs(gamepad2.right_stick_x) > 0.1) {
+                manualTurretOffset -= gamepad2.right_stick_x * 0.01; // Tunable sensitivity
+            }
         }
 
         // Outtake & Turret
         if (gamepad2.aWasPressed())
             outtakeSubsystem.ToggleShootMotor();
-        /*
-         * Maybe used at a later time
-         * if (gamepad2.yWasPressed()) {
-         * turretLockEnabled = !turretLockEnabled;
-         * outtakeSubsystem.SetAutoAim(turretLockEnabled);
-         * if (!turretLockEnabled)
-         * outtakeSubsystem.resetTurret();
-         * }
-         */
+        if (gamepad2.yWasPressed()) {
+            turretLockEnabled = !turretLockEnabled;
+            if (!turretLockEnabled)
+                outtakeSubsystem.resetTurret();
+            else
+                gamepad2.rumble(300);
+        }
         if (outtakeSubsystem.isReadyToFire())
             gamepad2.rumble(100);
 
         // Outtake Servo Angle
-        if (!storageSubsystem.autoSort && !storageSubsystem.autoThrow) {
+        // if (!storageSubsystem.autoSort && !storageSubsystem.autoThrow) {
+        if (true) { // Storage retired
             if (gamepad2.leftBumperWasReleased()) {
                 if (chassisLockEnabled || smallBasketLockEnabled) {
                     outtakeSubsystem.IncreaseAngleOffset();
@@ -395,15 +417,12 @@ public class OPMode extends OpMode {
 
         // --- GAMEPAD 2: OPERATOR ---
         telemetry.addLine("\n=== GAMEPAD 2: OPERATOR ===");
-        /*
-         * Maybe used at a later time
-         * telemetry.addData("> Turret Lock", turretLockEnabled ? "ACTIVE (Target: " +
-         * targetTagId + ")" : "OFF");
-         */
+        telemetry.addData("> Turret Lock", turretLockEnabled ? "ACTIVE" : "OFF");
         outtakeSubsystem.displayTelemetry(telemetry);
         telemetry.addData("> Power Offset", "%.3f (L-Stick Y)", outtakeSubsystem.getManualPowerOffset());
         telemetry.addData("> Angle Offset", "%.3f (Bumpers)", outtakeSubsystem.getManualAngleOffset());
-        storageSubsystem.displayTelemetry(telemetry);
+        telemetry.addData("> Turret Offset", "%.1f°", Math.toDegrees(manualTurretOffset));
+        // storageSubsystem.displayTelemetry(telemetry);
 
         // --- SENSORS & PATTERNS ---
         telemetry.addLine("\n=== SENSORS & LOGIC ===");

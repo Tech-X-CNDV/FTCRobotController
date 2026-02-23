@@ -71,19 +71,24 @@ public class AutoMic extends OpMode {
             case 0:
                 outtakeSubsystem.SetShootMotorPower(0.8);
                 outtakeSubsystem.SetAngle(1);
-                storageSubsystem.autoThrow = true;
+                // storageSubsystem.autoThrow = true;
                 if (pathTimer.getElapsedTimeSeconds() > 4)
                     setPathState(1);
                 break;
             case 1:
-                if (storageSubsystem.autoThrow) {
-                    storageSubsystem.ThrowAll(0.6);
-                } else {
-                    storageSubsystem.setServoPos(1);
-                    follower.setMaxPower(1);
-                    follower.followPath(path1);
-                    setPathState(2); // Move to Alignment
-                }
+                /*
+                 * if (storageSubsystem.autoThrow) {
+                 * storageSubsystem.ThrowAll(0.6);
+                 * } else {
+                 * storageSubsystem.setServoPos(1);
+                 * follower.setMaxPower(1);
+                 * follower.followPath(path1);
+                 * setPathState(2); // Move to Alignment
+                 * }
+                 */
+                follower.setMaxPower(1);
+                follower.followPath(path1);
+                setPathState(2);
                 break;
             case 2:
                 if (!follower.isBusy()) {
@@ -100,27 +105,34 @@ public class AutoMic extends OpMode {
                     follower.followPath(path3, true);
                     setPathState(4);
                 }
-                storageSubsystem.MoveRelative(475, 1);
+                // storageSubsystem.MoveRelative(475, 1);
                 break;
             case 4:
                 if (!follower.isBusy()) {
                     storageSubsystem.autoThrow = true;
                     setPathState(5);
                 } else {
-                    storageSubsystem.MoveRelative(475, 1);
+                    // storageSubsystem.MoveRelative(475, 1);
                 }
                 break;
             case 5:
-                if (storageSubsystem.autoThrow) {
-                    storageSubsystem.ThrowAll(0.6);
-                } else {
-                    storageSubsystem.setServoPos(1);
-                    outtakeSubsystem.SetShootMotorPower(0);
-                    intakeSubsytem.setPower(0);
-                    follower.setMaxPower(1);
-                    follower.followPath(path4, true);
-                    setPathState(6);
-                }
+                /*
+                 * if (storageSubsystem.autoThrow) {
+                 * storageSubsystem.ThrowAll(0.6);
+                 * } else {
+                 * storageSubsystem.setServoPos(1);
+                 * outtakeSubsystem.SetShootMotorPower(0);
+                 * intakeSubsytem.setPower(0);
+                 * follower.setMaxPower(1);
+                 * follower.followPath(path4, true);
+                 * setPathState(6);
+                 * }
+                 */
+                outtakeSubsystem.SetShootMotorPower(0);
+                intakeSubsytem.setPower(0);
+                follower.setMaxPower(1);
+                follower.followPath(path4, true);
+                setPathState(6);
                 break;
             case 6:
                 if (!follower.isBusy()) {
@@ -142,7 +154,7 @@ public class AutoMic extends OpMode {
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
-        storageSubsystem.InitStorage();
+        // storageSubsystem.InitStorage();
 
         intakeSubsytem = new IntakeSubsytem(hardwareMap);
         intakeSubsytem.InitIntake();
@@ -170,7 +182,7 @@ public class AutoMic extends OpMode {
     @Override
     public void loop() {
         follower.update();
-        storageSubsystem.update();
+        // storageSubsystem.update();
         outtakeSubsystem.update();
 
         Pose currentPose = follower.getPose();
@@ -193,7 +205,7 @@ public class AutoMic extends OpMode {
 
         // --- SUBSYSTEMS TELEMETRY ---
         intakeSubsytem.displayTelemetry(telemetry);
-        storageSubsystem.displayTelemetry(telemetry);
+        // storageSubsystem.displayTelemetry(telemetry);
         outtakeSubsystem.displayTelemetry(telemetry);
 
         telemetry.update();

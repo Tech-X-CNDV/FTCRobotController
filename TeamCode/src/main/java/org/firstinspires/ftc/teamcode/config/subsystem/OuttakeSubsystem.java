@@ -1,15 +1,19 @@
 package org.firstinspires.ftc.teamcode.config.subsystem;
 
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.hardware.dfrobot.HuskyLens;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
+@Configurable
 public class OuttakeSubsystem {
     private final HuskyLens hLens;
-    private final DcMotorEx shootMotor, shootMotor2;
+    private final DcMotorEx shootMotor, shootMotor2, turretMotor;
     private final Servo outtakeAngle;
 
     public static double DEFAULT_SHOOT_POWER = 0.7;
@@ -19,7 +23,7 @@ public class OuttakeSubsystem {
     private double manualAngleOffset = 0;
     public static double INITIAL_ANGLE = 0.9;
 
-    // Maybe used at a later time
+    // Turret Constants
     public static double TICKS_PER_DEGREE = 7.78;
     public static int MAX_TURRET_ANGLE_DEG = 90;
     public static double HUSKYLENS_FOV_DEG = 60.0;
@@ -29,7 +33,19 @@ public class OuttakeSubsystem {
     public static double TURRET_RESET_POWER = 0.5;
     public static int TARGET_TAG_ID = 1;
     public static double AUTO_SHOOT_POWER = 0.75;
-    //
+    private boolean isHuskyLock = false;
+
+    // Turret PID Constants (Tune these!)
+    public static double turretP = 0.005;
+    public static double turretI = 0.0001;
+    public static double turretD = 0.0001;
+    public static double turretF = 0.01;
+    public static double turretD_LPF = 0.8; // 0.8 means keep 80% of old value, 20% of new
+
+    private double turretIntegralSum = 0;
+    private double lastTurretError = 0;
+    private double lastFilteredDerivative = 0;
+    private final ElapsedTime turretTimer = new ElapsedTime();
 
     // Power Distance Scaling for shoot motor
     private final double MIN_SHOOT_POWER = 0.47;
@@ -50,6 +66,7 @@ public class OuttakeSubsystem {
     public OuttakeSubsystem(HardwareMap hardwareMap) {
         shootMotor = hardwareMap.get(DcMotorEx.class, "ShootMotor");
         shootMotor2 = hardwareMap.get(DcMotorEx.class, "ShootMotor2");
+        turretMotor = hardwareMap.get(DcMotorEx.class, "TurretMotor");
         outtakeAngle = hardwareMap.get(Servo.class, "outtakeAngle");
         hLens = hardwareMap.get(HuskyLens.class, "hLens");
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
@@ -68,6 +85,14 @@ public class OuttakeSubsystem {
         shootMotor2.setDirection(DcMotorEx.Direction.FORWARD);
         shootMotor2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+
+        turretMotor.setDirection(DcMotorEx.Direction.FORWARD);
+        turretMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+        turretMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        turretMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        turretTargetPos = 0;
+        lastFilteredDerivative = 0;
+        turretTimer.reset();
     }
 
     public void InitVision() {
@@ -94,6 +119,9 @@ public class OuttakeSubsystem {
         // DIRECT POWER (Ramping removed)
         shootMotor.setPower(targetBasePower);
         shootMotor2.setPower(targetBasePower);
+
+        // Update Turret PID
+        updateTurretPID();
     }
 
     public void updateAutoAimPower(double deltaX, double deltaY) {
@@ -228,44 +256,122 @@ public class OuttakeSubsystem {
         return hLens.blocks();
     }
 
-    // public void updateTurretLock(int targetTagId) {
-    // InitVision();
-    // HuskyLens.Block[] blocks = hLens.blocks();
-    // boolean found = false;
+    public void updateTurretLock(Pose robotPose, Pose targetPose, double manualOffset) {
+        InitVision(); // Ensure HuskyLens is initialized
+        HuskyLens.Block[] blocks = hLens.blocks();
+        HuskyLens.Block targetBlock = null;
 
-    // for (HuskyLens.Block block : blocks) {
-    // if (block.id == targetTagId) {
-    // double errorPixels = block.x - 160;
-    // double errorDegrees = errorPixels * (HUSKYLENS_FOV_DEG / 320.0);
-    // double currentAngleDeg = outtakeMotor.getCurrentPosition() /
-    // TICKS_PER_DEGREE;
-    // double targetAngleDeg = currentAngleDeg + errorDegrees;
+        for (HuskyLens.Block block : blocks) {
+            if (block.id == TARGET_TAG_ID) {
+                targetBlock = block;
+                break;
+            }
+        }
 
-    // if (targetAngleDeg > MAX_TURRET_ANGLE_DEG)
-    // targetAngleDeg = MAX_TURRET_ANGLE_DEG;
-    // if (targetAngleDeg < -MAX_TURRET_ANGLE_DEG)
-    // targetAngleDeg = -MAX_TURRET_ANGLE_DEG;
+        if (targetBlock != null) {
+            // Precise Lock using HuskyLens
+            // Center is 160, FOV is ~60 degrees
+            double visualErrorDeg = (targetBlock.x - 160) * (HUSKYLENS_FOV_DEG / 320.0);
 
-    // turretTargetPos = (int) (targetAngleDeg * TICKS_PER_DEGREE);
-    // found = true;
-    // break;
-    // }
-    // }
+            // RELATIVE UPDATE: Calculate target relative to current position to prevent
+            // "jumps"
+            int currentPos = turretMotor.getCurrentPosition();
+            int errorTicks = (int) (visualErrorDeg * TICKS_PER_DEGREE);
+            int manualOffsetTicks = (int) (manualOffset * 57.2958 * TICKS_PER_DEGREE); // Convert rad to deg then ticks
 
-    // outtakeMotor.setTargetPosition(found ? turretTargetPos :
-    // outtakeMotor.getTargetPosition());
-    // outtakeMotor.setPower(TURRET_TRACKING_POWER);
-    // }
+            int potentialTarget = currentPos + errorTicks + manualOffsetTicks;
 
-    // public void resetTurret() {
-    // turretTargetPos = 0;
-    // outtakeMotor.setTargetPosition(0);
-    // outtakeMotor.setPower(TURRET_RESET_POWER);
-    // }
+            // Clamp to physical limits in degrees before setting
+            double potentialTargetDeg = potentialTarget / TICKS_PER_DEGREE;
+            if (potentialTargetDeg > MAX_TURRET_ANGLE_DEG)
+                potentialTargetDeg = MAX_TURRET_ANGLE_DEG;
+            if (potentialTargetDeg < -MAX_TURRET_ANGLE_DEG)
+                potentialTargetDeg = -MAX_TURRET_ANGLE_DEG;
 
-    // public int getOuttakeMotorPosition() {
-    // return outtakeMotor.getCurrentPosition();
-    // }
+            turretTargetPos = (int) (potentialTargetDeg * TICKS_PER_DEGREE);
+            isHuskyLock = true;
+        } else {
+            // Fallback to Pedro Pathing Pose Lock
+            double deltaX = targetPose.getX() - robotPose.getX();
+            double deltaY = targetPose.getY() - robotPose.getY();
+
+            // Calculate absolute angle to target
+            double angleToTarget = Math.atan2(deltaY, deltaX);
+
+            // Calculate relative angle for turret (target - robot heading)
+            double relativeAngle = angleToTarget - robotPose.getHeading() + manualOffset;
+
+            // Normalize relative angle to [-PI, PI]
+            while (relativeAngle > Math.PI)
+                relativeAngle -= 2 * Math.PI;
+            while (relativeAngle < -Math.PI)
+                relativeAngle += 2 * Math.PI;
+
+            double targetAngleDeg = Math.toDegrees(relativeAngle);
+
+            // Clamp to physical limits
+            if (targetAngleDeg > MAX_TURRET_ANGLE_DEG)
+                targetAngleDeg = MAX_TURRET_ANGLE_DEG;
+            if (targetAngleDeg < -MAX_TURRET_ANGLE_DEG)
+                targetAngleDeg = -MAX_TURRET_ANGLE_DEG;
+
+            turretTargetPos = (int) (targetAngleDeg * TICKS_PER_DEGREE);
+            isHuskyLock = false;
+        }
+    }
+
+    private void updateTurretPID() {
+        double currentPos = turretMotor.getCurrentPosition();
+        double error = turretTargetPos - currentPos;
+        double dt = turretTimer.seconds();
+        turretTimer.reset();
+
+        if (dt > 0.1)
+            dt = 0.01; // Prevent massive spikes on first loop or lag
+
+        turretIntegralSum += error * dt;
+
+        // Anti-windup: cap the integral sum
+        if (Math.abs(turretIntegralSum) > 0.2 / turretI) {
+            turretIntegralSum = Math.signum(turretIntegralSum) * (0.2 / turretI);
+        }
+
+        double rawDerivative = (error - lastTurretError) / dt;
+        lastTurretError = error;
+
+        // Apply Low-Pass Filter to Derivative to reduce noise from flywheel vibrations
+        double filteredDerivative = (turretD_LPF * lastFilteredDerivative) + ((1 - turretD_LPF) * rawDerivative);
+        lastFilteredDerivative = filteredDerivative;
+
+        double power = (error * turretP) + (turretIntegralSum * turretI) + (filteredDerivative * turretD);
+
+        // Add Feedforward based on target direction (simple static friction
+        // compensation)
+        if (Math.abs(error) > 2) {
+            power += Math.signum(error) * turretF;
+        }
+
+        // Clamp power and apply
+        power = Math.max(-1.0, Math.min(1.0, power));
+
+        // NOTE: Hard-zeroing deadband removed to maintain gear tension on Lazy Susan
+        /*
+         * if (Math.abs(error) < 2 && Math.abs(derivative) < 1) {
+         * power = 0;
+         * turretIntegralSum = 0;
+         * }
+         */
+
+        turretMotor.setPower(power);
+    }
+
+    public void resetTurret() {
+        turretTargetPos = 0;
+    }
+
+    public int getTurretPosition() {
+        return turretMotor.getCurrentPosition();
+    }
 
     public int getTurretTargetPos() {
         return turretTargetPos;
@@ -287,6 +393,8 @@ public class OuttakeSubsystem {
         telemetry.addData("Target Power", "%.2f", getTargetBasePower());
         telemetry.addData("Target Velocity", "%.0f", getTargetBasePower() * MAX_VELOCITY);
         telemetry.addData("ShootMotor Velocity", getVelocity());
+        telemetry.addData("Turret Pos", getTurretPosition());
         telemetry.addData("Turret Target", getTurretTargetPos());
+        telemetry.addData("Turret Lock Mode", isHuskyLock ? "HUSKY (PRECISE)" : "POSE (FALLBACK)");
     }
 }

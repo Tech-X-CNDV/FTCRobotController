@@ -46,23 +46,39 @@ The outtake power is now calculated using PedroPathing distances: `Power = MIN_S
 | `TICKS_PER_DEGREE` | Turret encoder ratio. | If the turret turns 10° but stops at 12°, decrease this value. |
 | `MAX_TURRET_ANGLE_DEG`| Safety limit for turret rotation. | Set this to prevent the turret from hitting your chassis or pulling wires. |
 | `HUSKYLENS_FOV_DEG` | The camera's field of view. | Default 60.0. Adjust if the tag isn't centered when the error says 0. |
-| `TURRET_TRACKING_POWER`| Speed of the turret's auto-rotation. | Default 0.6. Increase for snappier tracking. |
-| `TURRET_RESET_POWER` | Speed when the turret returns to 0°. | Default 0.5. |
 | `INITIAL_ANGLE` | Starting position of the outtake bucket. | Default 0.9. Adjust to set the default "rest" or "ready" angle. |
 
 ---
 
-## 4. Storage & Watchdog
-**File**: [StorageSubsystem.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/StorageSubsystem.java)
+## 4. Storage (RETIRED)
+**Note**: The storage subsystem is currently disabled in the code. Section 4 is preserved for legacy reference but does not affect the robot's current operation.
 
-The watchdog monitors the motor for jams and automatically runs a recovery sequence.
+---
 
+## 5. Hybrid Turret PID Control
+**File**: [OuttakeSubsystem.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/OuttakeSubsystem.java)
+
+The turret now uses a custom PIDF (Proportional-Integral-Derivative + Feedforward) controller for high-speed tracking.
+
+### PID Constants
 | Variable | Description | Tuning Tips |
 | :--- | :--- | :--- |
-| `STUCK_VELOCITY_THRESHOLD` | Minimal speed (ticks/sec) before "stuck" (default 50.0). | **Higher** = faster jam detection. **Lower** = prevents false positives on heavy loads. |
-| `STUCK_TIMEOUT_MS` | Delay before recovery (default 500ms). | Increase if the motor is "thinking" too long on startup and triggering recovery. |
-| `RECOVERY_DELAY_MS` | Wait time between vibrate cycles (default 250ms). | Time for a physical jam to fall out before retrying. |
+| `turretP` | Proportional Gain (Main speed). | **Increase** until the turret oscillates, then lower by 20%. |
+| `turretI` | Integral Gain (Correction). | **Increase** if the turret stops slightly before its target. Too much causes overshooting. |
+| `turretD` | Derivative Gain (Damping). | **Increase** to stop the turret from "bouncing" or vibrating at the target. |
+| `turretF` | Feedforward (Static Friction). | The minimal power needed to start the turret moving. Adjust until the turret doesn't "get stuck" on tiny errors. |
 
-### Logic Behaviors:
-- **Priority Input**: Pressing D-pad Up during a jam will immediately reset the watchdog and attempt your manual move. 
-- **Busy Tolerance**: The system ignores "IsBusy" locks when the motor is within **5 ticks** of the target. This ensures rapid-clicking D-pad Up feels responsive.
+### How the Hybrid System Works
+1. **HuskyLock (Priority)**: If the HuskyLens sees the target AprilTag, it calculates the visual error (pixels from center) and maps it directly to a turret angle adjustment. This is extremely precise and ignores drive-drift.
+2. **PoseLock (Fallback)**: If the tag is hidden, the system calculates the angle to the basket using the robot's current X,Y coordinates. This is less precise but keeps the turret pointed in the right direction.
+
+### The Custom PID Logic Explained
+The `updateTurretPID()` function runs every ~10ms. It works as follows:
+
+1. **Error Calculation**: `error = targetPosition - currentPosition`. This is the distance we need to move.
+2. **P (Proportional)**: Multiplies the error. Big error = fast move; Small error = slow move.
+3. **I (Integral)**: Accumulates error over time (`integralSum += error * dt`). This "forces" the turret to move the last few ticks if physics (like friction) stops it early.
+    - *Anti-Windup*: The code caps this sum to prevent the turret from spinning wildly if it's held by hand.
+4. **D (Derivative)**: Measures how fast the error is changing (`(error - lastError) / dt`). It acts like a "brake" to slow down the turret as it approaches the target.
+5. **F (Feedforward)**: Adds a small constant power in the direction of the error to overcome static friction of the gears.
+6. **Safety**: If the error is less than 2 ticks, the turret stops and clears the integral sum to prevent "jittering" at rest.

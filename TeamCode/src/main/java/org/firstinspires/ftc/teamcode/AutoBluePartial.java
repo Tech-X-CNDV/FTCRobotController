@@ -131,20 +131,24 @@ public class AutoBluePartial extends OpMode {
                 outtakeSubsystem.AutoAngle();
                 outtakeSubsystem.SetShootMotorPower(0.8);
                 follower.setMaxPower(0.8);
-                storageSubsystem.autoThrow = true;
+                // storageSubsystem.autoThrow = true;
                 setPathState(1);
                 break;
 
             case 1: // SHOOTING: Preload
                 if (!isBusy) {
                     dynamicAimStarted = true;
-                    if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll(0.32);
-                    } else {
-                        storageSubsystem.setServoPos(1);
-                        follower.setMaxPower(1);
-                        setPathState(2); // Move to Alignment
-                    }
+                    /*
+                     * if (storageSubsystem.autoThrow) {
+                     * storageSubsystem.ThrowAll(0.32);
+                     * } else {
+                     * storageSubsystem.setServoPos(1);
+                     * follower.setMaxPower(1);
+                     * setPathState(2); // Move to Alignment
+                     * }
+                     */
+                    follower.setMaxPower(1);
+                    setPathState(2);
                 }
                 break;
 
@@ -173,7 +177,7 @@ public class AutoBluePartial extends OpMode {
                 }
                 // Delayed Conveyor during stab
                 // if (pathTimer.getElapsedTimeSeconds() > 0.2) {
-                storageSubsystem.MoveRelative(475, 1);
+                // storageSubsystem.MoveRelative(475, 1);
                 // }
                 break;
 
@@ -185,18 +189,22 @@ public class AutoBluePartial extends OpMode {
                 }
                 // Secure intake during travel
                 if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
-                    storageSubsystem.MoveRelative(475, 1);
-                break;
+                    // storageSubsystem.MoveRelative(475, 1);
+                    break;
 
             case 6: // SHOOTING 1
                 if (!isBusy) {
-                    if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll(0.32);
-                    } else {
-                        storageSubsystem.setServoPos(1);
-                        follower.followPath(path5); // Align to Pickup 2
-                        setPathState(7);
-                    }
+                    /*
+                     * if (storageSubsystem.autoThrow) {
+                     * storageSubsystem.ThrowAll(0.32);
+                     * } else {
+                     * storageSubsystem.setServoPos(1);
+                     * follower.followPath(path5); // Align to Pickup 2
+                     * setPathState(7);
+                     * }
+                     */
+                    follower.followPath(path5);
+                    setPathState(7);
                 }
                 break;
 
@@ -217,7 +225,7 @@ public class AutoBluePartial extends OpMode {
                     setPathState(9);
                 }
                 // if (pathTimer.getElapsedTimeSeconds() > 0.1) {
-                storageSubsystem.MoveRelative(475, 1);
+                // storageSubsystem.MoveRelative(475, 1);
                 // }
                 break;
 
@@ -228,24 +236,29 @@ public class AutoBluePartial extends OpMode {
                     setPathState(10);
                 }
                 if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
-                    storageSubsystem.MoveRelative(475, 1);
-                break;
+                    // storageSubsystem.MoveRelative(475, 1);
+                    break;
 
             case 10: // SHOOTING 2
                 if (!isBusy) {
-                    if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll(0.32);
-                    } else {
-                        storageSubsystem.setServoPos(1);
-                        intakeSubsytem.setPower(1);
-                        follower.followPath(path9, true); // Park
-                        setPathState(11);
-                    }
+                    /*
+                     * if (storageSubsystem.autoThrow) {
+                     * storageSubsystem.ThrowAll(0.32);
+                     * } else {
+                     * storageSubsystem.setServoPos(1);
+                     * intakeSubsytem.setPower(1);
+                     * follower.followPath(path9, true); // Park
+                     * setPathState(11);
+                     * }
+                     */
+                    intakeSubsytem.setPower(1);
+                    follower.followPath(path9, true);
+                    setPathState(11);
                 }
                 break;
             case 11:
                 if (!isBusy) {
-                    storageSubsystem.MoveRelative(475, 1);
+                    // storageSubsystem.MoveRelative(475, 1);
                     if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                         follower.followPath(path11, true);
                         setPathState(12);
@@ -255,7 +268,7 @@ public class AutoBluePartial extends OpMode {
                 }
                 break;
             case 12:
-                storageSubsystem.MoveRelative(475, 1);
+                // storageSubsystem.MoveRelative(475, 1);
                 if (!isBusy) {
                     if (pathTimer.getElapsedTimeSeconds() > 0.7) {
                         follower.followPath(path10, true);
@@ -268,15 +281,20 @@ public class AutoBluePartial extends OpMode {
                 break;
             case 13:
                 if (!isBusy) {
-                    if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll(0.32);
-                    } else {
-                        storageSubsystem.setServoPos(1);
-                        intakeSubsytem.setPower(1);
-                        outtakeSubsystem.SetShootMotorPower(0);
-                        // follower.followPath(path8, true); // Park
-                        setPathState(15);
-                    }
+                    /*
+                     * if (storageSubsystem.autoThrow) {
+                     * storageSubsystem.ThrowAll(0.32);
+                     * } else {
+                     * storageSubsystem.setServoPos(1);
+                     * intakeSubsytem.setPower(1);
+                     * outtakeSubsystem.SetShootMotorPower(0);
+                     * // follower.followPath(path8, true); // Park
+                     * setPathState(15);
+                     * }
+                     */
+                    intakeSubsytem.setPower(1);
+                    outtakeSubsystem.SetShootMotorPower(0);
+                    setPathState(15);
                 }
                 break;
             case 15: // PARK COMPLETION
@@ -300,7 +318,7 @@ public class AutoBluePartial extends OpMode {
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
-        storageSubsystem.InitStorage();
+        // storageSubsystem.InitStorage();
 
         intakeSubsytem = new IntakeSubsytem(hardwareMap);
         intakeSubsytem.InitIntake();
@@ -335,7 +353,7 @@ public class AutoBluePartial extends OpMode {
         Pose currentPose = follower.getPose();
 
         follower.update();
-        storageSubsystem.update();
+        // storageSubsystem.update();
         outtakeSubsystem.update();
 
         if (dynamicAimStarted) {
@@ -374,7 +392,7 @@ public class AutoBluePartial extends OpMode {
 
         // --- SUBSYSTEMS TELEMETRY ---
         intakeSubsytem.displayTelemetry(telemetry);
-        storageSubsystem.displayTelemetry(telemetry);
+        // storageSubsystem.displayTelemetry(telemetry);
         outtakeSubsystem.displayTelemetry(telemetry);
 
         telemetry.update();
