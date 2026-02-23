@@ -5,7 +5,7 @@ import com.pedropathing.geometry.Pose;
 public class FieldPoses {
     // Blue Alliance Poses (Source of Truth)
     public static final Pose START = new Pose(23.25028571428571, 126.49142857142861, Math.toRadians(143));
-    public static final Pose SCORE = new Pose(48.72801428571427, 91.61141428571426, Math.toRadians(136));
+    public static final Pose SCORE = new Pose(48.10058571428572, 102.75198571428571, Math.toRadians(145));
     public static final Pose LOCK_POSE = new Pose(7.765714285714282, 135.07942857142854);
     public static final Pose LOW_BASKET_POSE = new Pose(5.572620000000042, 121.41536014285717);
 
@@ -17,12 +17,16 @@ public class FieldPoses {
 
     // Pickup 2
     public static final Pose PICKUP_2 = new Pose(46.5110334, 57.334464, Math.toRadians(-177));
-    public static final Pose GET_PICK_2 = new Pose(10.657059, 56.334464, Math.toRadians(-177));
-    public static final Pose GET_PICK_2_BACK = new Pose(30.0, 55.929082, Math.toRadians(190));
+    public static final Pose GET_PICK_2 = new Pose(10.557059, 56.334464, Math.toRadians(-177));
+    public static final Pose GET_PICK_2_POINT = new Pose(41.30171428571428, 70.59542857142856);
 
     // Pickup 3
     public static final Pose PICKUP_3 = new Pose(46.5110334, 33.558042, Math.toRadians(-177));
     public static final Pose GET_PICK_3 = new Pose(10.657059, 33.558042, Math.toRadians(-177));
+
+    public static final Pose cycle = new Pose(133.34571428571425, 57.704, Math.toRadians(30));
+    public static final Pose cycle2 = new Pose(133.34571428571425, 54.07714285714288, Math.toRadians(30));
+    public static final Pose cyclePoint = new Pose(99.32542857142855, 66.20285714285717);
 
     // Parking
     public static final Pose PARK = new Pose(24.06171428571428, 89.74514285714287, Math.toRadians(141));

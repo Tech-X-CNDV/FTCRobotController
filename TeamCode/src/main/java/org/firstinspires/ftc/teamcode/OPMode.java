@@ -148,7 +148,7 @@ public class OPMode extends OpMode {
         if (storageSubsystem.autoSort)
             storageSubsystem.PatternSortAuto(charPattern);
         else if (!manual && storageSubsystem.autoThrow)
-            storageSubsystem.ThrowAll();
+            storageSubsystem.ThrowAll(0.32);
 
         // if (turretLockEnabled)
         // outtakeSubsystem.updateTurretLock(targetTagId);
@@ -356,12 +356,21 @@ public class OPMode extends OpMode {
         if (outtakeSubsystem.isReadyToFire())
             gamepad2.rumble(100);
 
-        // Outtake Servo Angle (currently overwritten by autoaim)
+        // Outtake Servo Angle
         if (!storageSubsystem.autoSort && !storageSubsystem.autoThrow) {
-            if (gamepad2.leftBumperWasReleased())
-                outtakeSubsystem.IncreaseAngleOffset();
-            else if (gamepad2.rightBumperWasReleased())
-                outtakeSubsystem.DecreaseAngleOffset();
+            if (gamepad2.leftBumperWasReleased()) {
+                if (chassisLockEnabled || smallBasketLockEnabled) {
+                    outtakeSubsystem.IncreaseAngleOffset();
+                } else {
+                    outtakeSubsystem.IncreaseDirectAngle();
+                }
+            } else if (gamepad2.rightBumperWasReleased()) {
+                if (chassisLockEnabled || smallBasketLockEnabled) {
+                    outtakeSubsystem.DecreaseAngleOffset();
+                } else {
+                    outtakeSubsystem.DecreaseDirectAngle();
+                }
+            }
         }
 
         // Manual Shooter Power Offset (Persistent)

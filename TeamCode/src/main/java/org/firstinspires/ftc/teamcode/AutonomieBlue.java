@@ -47,7 +47,7 @@ public class AutonomieBlue extends OpMode {
     // Pickup 2
     private final Pose pickup2 = FieldPoses.PICKUP_2;
     private final Pose getPick2 = FieldPoses.GET_PICK_2;
-    private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK;
+    // private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK;
 
     // Pickup 3
     private final Pose pickup3 = FieldPoses.PICKUP_3;
@@ -141,7 +141,7 @@ public class AutonomieBlue extends OpMode {
                 if (!isBusy) {
                     dynamicAimStarted = true;
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         storageSubsystem.setServoPos(1);
                         follower.setMaxPower(1);
@@ -184,7 +184,7 @@ public class AutonomieBlue extends OpMode {
             case 6: // SHOOTING 1
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
@@ -221,7 +221,7 @@ public class AutonomieBlue extends OpMode {
             case 10: // SHOOTING 2
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
@@ -260,7 +260,7 @@ public class AutonomieBlue extends OpMode {
             case 14: // SHOOTING 3
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);

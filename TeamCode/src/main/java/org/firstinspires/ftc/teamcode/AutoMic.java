@@ -77,7 +77,7 @@ public class AutoMic extends OpMode {
                 break;
             case 1:
                 if (storageSubsystem.autoThrow) {
-                    storageSubsystem.ThrowAll();
+                    storageSubsystem.ThrowAll(0.6);
                 } else {
                     storageSubsystem.setServoPos(1);
                     follower.setMaxPower(1);
@@ -112,7 +112,7 @@ public class AutoMic extends OpMode {
                 break;
             case 5:
                 if (storageSubsystem.autoThrow) {
-                    storageSubsystem.ThrowAll();
+                    storageSubsystem.ThrowAll(0.6);
                 } else {
                     storageSubsystem.setServoPos(1);
                     outtakeSubsystem.SetShootMotorPower(0);

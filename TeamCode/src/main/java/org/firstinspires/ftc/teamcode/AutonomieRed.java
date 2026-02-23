@@ -47,7 +47,7 @@ public class AutonomieRed extends OpMode {
     // Pickup 2
     private final Pose pickup2 = FieldPoses.PICKUP_2.mirror();
     private final Pose getPick2 = FieldPoses.GET_PICK_2.mirror();
-    private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK.mirror();
+    // private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK.mirror();
 
     // Pickup 3
     private final Pose pickup3 = FieldPoses.PICKUP_3.mirror();
@@ -142,7 +142,7 @@ public class AutonomieRed extends OpMode {
                 if (!isBusy) {
                     dynamicAimStarted = true;
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         storageSubsystem.setServoPos(1);
                         follower.setMaxPower(1);
@@ -190,7 +190,7 @@ public class AutonomieRed extends OpMode {
             case 6: // SHOOTING 1
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
@@ -231,7 +231,7 @@ public class AutonomieRed extends OpMode {
             case 10: // SHOOTING 2
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
@@ -274,7 +274,7 @@ public class AutonomieRed extends OpMode {
             case 14: // SHOOTING 3
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);

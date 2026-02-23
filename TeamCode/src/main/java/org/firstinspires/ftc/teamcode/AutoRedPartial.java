@@ -47,11 +47,15 @@ public class AutoRedPartial extends OpMode {
     // Pickup 2
     private final Pose pickup2 = FieldPoses.PICKUP_2.mirror();
     private final Pose getPick2 = FieldPoses.GET_PICK_2.mirror();
-    private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK.mirror();
+    private final Pose getPick2Point = FieldPoses.GET_PICK_2_POINT.mirror();
+
+    private final Pose cycle = FieldPoses.cycle;
+    private final Pose cycle2 = FieldPoses.cycle2;
+    private final Pose cyclePoint = FieldPoses.cyclePoint;
 
     // Parking
     private final Pose parkPose = FieldPoses.PARK.mirror();
-    private PathChain path1, path2, path3, path4, path5, path6, path7, path8;
+    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11;
 
     public void buildPaths() {
         // path1: Start to Preload Score
@@ -96,8 +100,21 @@ public class AutoRedPartial extends OpMode {
 
         // Path 7: Swing out to avoid the obstacle on the left
         path7 = follower.pathBuilder()
-                .addPath(new BezierCurve(getPick2, new Pose(79, 65), scorePose))
+                .addPath(new BezierCurve(getPick2, getPick2Point, scorePose))
                 .setLinearHeadingInterpolation(getPick2.getHeading(), scorePose.getHeading())
+                .build();
+
+        path9 = follower.pathBuilder()
+                .addPath(new BezierCurve(scorePose, cyclePoint, cycle))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), cycle.getHeading())
+                .build();
+        path10 = follower.pathBuilder()
+                .addPath(new BezierCurve(cycle2, cyclePoint, scorePose))
+                .setLinearHeadingInterpolation(cycle2.getHeading(), scorePose.getHeading())
+                .build();
+        path11 = follower.pathBuilder()
+                .addPath(new BezierLine(cycle, cycle2))
+                .setLinearHeadingInterpolation(cycle.getHeading(), cycle2.getHeading())
                 .build();
 
         // path8: Final Park
@@ -112,7 +129,7 @@ public class AutoRedPartial extends OpMode {
             case 0: // Move to Preload Score
                 follower.followPath(path1, true);
                 outtakeSubsystem.AutoAngle();
-                outtakeSubsystem.SetShootMotorPower(1.0);
+                outtakeSubsystem.SetShootMotorPower(0.8);
                 follower.setMaxPower(0.8);
                 storageSubsystem.autoThrow = true;
                 setPathState(1);
@@ -122,7 +139,7 @@ public class AutoRedPartial extends OpMode {
                 if (!isBusy) {
                     dynamicAimStarted = true;
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
                         storageSubsystem.setServoPos(1);
                         follower.setMaxPower(1);
@@ -141,7 +158,7 @@ public class AutoRedPartial extends OpMode {
 
             case 3: // STAB/INTAKE 1 (Path 3)
                 if (!isBusy) {
-                    follower.setMaxPower(0.8);
+                    follower.setMaxPower(0.9);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path3);
                     setPathState(4);
@@ -162,6 +179,7 @@ public class AutoRedPartial extends OpMode {
 
             case 5: // ARRIVED Score 1
                 if (!isBusy) {
+                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }
@@ -173,9 +191,8 @@ public class AutoRedPartial extends OpMode {
             case 6: // SHOOTING 1
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
-                        intakeSubsytem.setPower(0);
                         storageSubsystem.setServoPos(1);
                         follower.followPath(path5); // Align to Pickup 2
                         setPathState(7);
@@ -186,7 +203,7 @@ public class AutoRedPartial extends OpMode {
             // ================= PICKUP 2 SEQUENCE =================
             case 7: // STAB/INTAKE 2 (Path 6)
                 if (!isBusy) {
-                    follower.setMaxPower(0.8);
+                    follower.setMaxPower(0.9);
                     intakeSubsytem.setPower(1);
                     follower.followPath(path6);
                     setPathState(8);
@@ -206,6 +223,7 @@ public class AutoRedPartial extends OpMode {
 
             case 9: // ARRIVED Score 2
                 if (!isBusy) {
+                    intakeSubsytem.setPower(0);
                     storageSubsystem.autoThrow = true;
                     setPathState(10);
                 }
@@ -216,12 +234,47 @@ public class AutoRedPartial extends OpMode {
             case 10: // SHOOTING 2
                 if (!isBusy) {
                     if (storageSubsystem.autoThrow) {
-                        storageSubsystem.ThrowAll();
+                        storageSubsystem.ThrowAll(0.32);
                     } else {
-                        intakeSubsytem.setPower(0);
-                        outtakeSubsystem.SetShootMotorPower(0);
                         storageSubsystem.setServoPos(1);
-                        follower.followPath(path8, true); // Park
+                        intakeSubsytem.setPower(1);
+                        follower.followPath(path9, true); // Park
+                        setPathState(11);
+                    }
+                }
+                break;
+            case 11:
+                if (!isBusy) {
+                    storageSubsystem.MoveRelative(475, 1);
+                    if (pathTimer.getElapsedTimeSeconds() > 0.1) {
+                        follower.followPath(path11, true);
+                        setPathState(12);
+                    }
+                } else {
+                    pathTimer.resetTimer();
+                }
+                break;
+            case 12:
+                storageSubsystem.MoveRelative(475, 1);
+                if (!isBusy) {
+                    if (pathTimer.getElapsedTimeSeconds() > 0.7) {
+                        follower.followPath(path10, true);
+                        storageSubsystem.autoThrow = true;
+                        setPathState(13);
+                    }
+                } else {
+                    pathTimer.resetTimer();
+                }
+                break;
+            case 13:
+                if (!isBusy) {
+                    if (storageSubsystem.autoThrow) {
+                        storageSubsystem.ThrowAll(0.32);
+                    } else {
+                        storageSubsystem.setServoPos(1);
+                        intakeSubsytem.setPower(1);
+                        outtakeSubsystem.SetShootMotorPower(0);
+                        // follower.followPath(path8, true); // Park
                         setPathState(15);
                     }
                 }
@@ -264,7 +317,7 @@ public class AutoRedPartial extends OpMode {
         pathTimer.resetTimer();
         matchTimer.reset();
         outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(0.75);
+        outtakeSubsystem.SetShootMotorPower(1.0);
         dynamicAimStarted = false;
         PoseStorage.isRed = true;
         PoseStorage.allianceOffset = 0;
@@ -285,7 +338,7 @@ public class AutoRedPartial extends OpMode {
         outtakeSubsystem.update();
 
         if (dynamicAimStarted) {
-            // Calculate Distance to Bucket (LOCK_POSE mirror for Red)
+            // Calculate Distance to Bucket (LOCK_POSE for Blue)
             double deltaX = targetPose.getX() - currentPose.getX();
             double deltaY = targetPose.getY() - currentPose.getY();
 
@@ -293,7 +346,7 @@ public class AutoRedPartial extends OpMode {
             outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
         } else {
             // High-power spin-up while traveling to first position
-            outtakeSubsystem.SetShootMotorPower(0.72);
+            outtakeSubsystem.SetShootMotorPower(0.78);
             outtakeSubsystem.AutoAngle();
         }
 

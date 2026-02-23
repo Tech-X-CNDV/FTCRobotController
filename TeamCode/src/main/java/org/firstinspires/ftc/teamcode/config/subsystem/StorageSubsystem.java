@@ -86,7 +86,7 @@ public class StorageSubsystem {
     private int throwState = 0;
     private int turns = 0;
 
-    public void ThrowAll() {
+    public void ThrowAll(double servoWaitTime) {
         switch (throwState) {
             case 0: // PHASE 1: FIRE
                 // Ensure indexer is dead-still before firing to prevent jams
@@ -98,8 +98,8 @@ public class StorageSubsystem {
                 break;
 
             case 1: // PHASE 2: RETRACT & INDEX SIMULTANEOUSLY
-                // Adjusted to 0.32s to give the Axon time to complete the full 0.6 arc
-                if (servoTimer.seconds() > 0.32) { // 0.32 aproape
+                // Adjusted to servoWaitTime to give the Axon time to complete the full 0.6 arc
+                if (servoTimer.seconds() > servoWaitTime) { // dynamic wait time
                     servoArunc.setPosition(0.97); // Start returning to home
 
                     turns++;

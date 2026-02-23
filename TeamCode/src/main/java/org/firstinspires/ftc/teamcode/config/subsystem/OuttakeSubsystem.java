@@ -196,6 +196,18 @@ public class OuttakeSubsystem {
         this.manualAngleOffset -= 0.05;
     }
 
+    public void IncreaseDirectAngle() {
+        double currentAngle = outtakeAngle.getPosition();
+        double newAngle = Math.min(1.0, currentAngle + 0.05);
+        SetAngle(newAngle);
+    }
+
+    public void DecreaseDirectAngle() {
+        double currentAngle = outtakeAngle.getPosition();
+        double newAngle = Math.max(0.0, currentAngle - 0.05);
+        SetAngle(newAngle);
+    }
+
     public boolean isReadyToFire() {
         // Ready if enabled and velocity is within 5% of our expected target velocity
         double targetVelocity = targetBasePower * MAX_VELOCITY;
