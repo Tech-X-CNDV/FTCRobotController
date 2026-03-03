@@ -2,19 +2,44 @@
 
 This document explains how to calibrate the various software features to match your robot's physical hardware performance.
 
-## 1. Outtake System (Power & Logic)
+## 1. Outtake System (PIDF Velocity Control)
 **File**: [OuttakeSubsystem.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/OuttakeSubsystem.java)
 
-The outtake power is now calculated using PedroPathing distances: `Power = MIN_SHOOT_POWER + (Dist * SCALING)`.
+The outtake uses `RUN_USING_ENCODER` (PIDF-based velocity control). This system maps physical distance to a specific **Target Velocity** (ticks/sec) instead of raw power.
 
-### Shooting Power
+### STEP A: Find Physical Limit (Max Velocity)
+**Tuning OpMode**: [MaxVelocityTuningOpMode.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode/tuning/MaxVelocityTuningOpMode.java)
+
+Before tuning PIDF, you must find the motor's true capacity.
+1. Run `Tuning: Find Max Velocity` with a fresh battery.
+2. Note the **Average Velocity** (ticks/sec) while at 1.0 power.
+3. Update `MAX_VELOCITY` in `OuttakeSubsystem.java` (Line 54).
+   - *Example*: If you see 5100, set `MAX_VELOCITY = 5100;`. This provides the benchmark for all dynamic calculations.
+
+### STEP B: Interactive PIDF Tuning
+**Tuning OpMode**: [FlywheelTuningOpMode.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode/tuning/FlywheelTuningOpMode.java)
+
 | Variable | Description | Tuning Tips |
 | :--- | :--- | :--- |
-| `VOLTAGE` | The reference battery level (default 13.4V). | Power is scaled UP as battery drops below this. Do not change during competition. |
-| `MIN_SHOOT_POWER` | Minimum power to eject a ball (default 0.55). | Adjust until the ball barely leaves the launcher at close range. |
-| `MAX_VELOCITY` | Ticks/sec at 1.0 power (default 2800). | **CRITICAL**: Run the motor at 1.0 power and check telemetry for `Current Velocity`. Put that value here. |
-| `POWER_DISTANCE_SCALING`| How much power increases per inch (default 0.0012). | Increase if shots fall short at long range but hit correctly at close range. |
-| `AUTO_SHOOT_POWER`| Static power for Autonomous (default 0.75). | Set to your most consistent scoring power for fixed positions. |
+| `flywheelF` | Feedforward Gain. | **Start here**. Increase until the flywheel reaches ~95% of target with P=0. |
+| `flywheelP` | Proportional Gain. | Increase after setting F to eliminate recovery dip after shots. |
+| `targetVelocity`| Test RPM. | Toggle between 4800 and 4000 RPM using Gamepad 1 [Y]. |
+
+**Tuning Controls (Gamepad 1)**:
+- **[Y]**: Toggle Target Velocity (4800 / 4000).
+- **[B]**: Cycle Step Size (10, 1, 0.1, 0.01, 0.001).
+- **Dpad Up/Down**: Adjust **P** value.
+- **Dpad Left/Right**: Adjust **F** value.
+
+### STEP C: Dynamic Distance Integration
+In matches, the robot automatically calculates:
+`Target Velocity = (MIN_SHOOT_POWER + (Dist * SCALING)) * MAX_VELOCITY`
+
+| Variable | Description | Value |
+| :--- | :--- | :--- |
+| `POWER_DISTANCE_SCALING`| Velocity boost per inch. | Increase if shots fall short only at long range. |
+| `MIN_SHOOT_POWER` | Baseline velocity ratio. | The "Minimum" percentage of MAX_VELOCITY needed to score. |
+
 
 ### Dynamic Launcher Angle
 | Variable | Description | Value |

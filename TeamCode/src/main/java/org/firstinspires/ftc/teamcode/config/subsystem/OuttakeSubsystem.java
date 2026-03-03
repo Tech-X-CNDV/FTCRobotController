@@ -6,7 +6,7 @@ import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
+
 import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
@@ -15,6 +15,10 @@ public class OuttakeSubsystem {
     private final HuskyLens hLens;
     private final DcMotorEx shootMotor, shootMotor2, turretMotor;
     private final Servo outtakeAngle;
+
+    public double targetVelocity = 4800;
+    public double flywheelP = 0;
+    public double flywheelF = 0;
 
     public static double DEFAULT_SHOOT_POWER = 0.7;
     private boolean shootMotorEnabled = false;
@@ -51,11 +55,7 @@ public class OuttakeSubsystem {
     private final double MIN_SHOOT_POWER = 0.47;
     private final double MAX_SHOOT_POWER = 1.0;
     private final double POWER_DISTANCE_SCALING = 0.0012; // Adjust this to tune how hard it shoots
-    public static double MAX_VELOCITY = 2550; // Ticks per second at 1.0 power. TUNE THIS!
-    private final double VOLTAGE = 13.4; // Fresh battery
-    private double filteredVoltage = 13.0; // Start at a healthy middle ground
-    private final double LPF_COEFFICIENT = 0.95; // 0.95 means it keeps 95% of old value, 5% of new
-    private VoltageSensor voltageSensor;
+    public static double MAX_VELOCITY = 5300; // Ticks per second at 1.0 power based on 6000RPM+ headroom. TUNE THIS!
 
     // Angle Distance Scaling for outtake angle
     private final double CLOSE_DIST = 30.0;
@@ -69,22 +69,20 @@ public class OuttakeSubsystem {
         turretMotor = hardwareMap.get(DcMotorEx.class, "TurretMotor");
         outtakeAngle = hardwareMap.get(Servo.class, "outtakeAngle");
         hLens = hardwareMap.get(HuskyLens.class, "hLens");
-        voltageSensor = hardwareMap.voltageSensor.iterator().next();
     }
 
     private boolean huskyLensInitialized = false;
 
     public void InitOuttake() {
         targetBasePower = DEFAULT_SHOOT_POWER;
-        filteredVoltage = voltageSensor.getVoltage();
 
         shootMotor.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
         shootMotor2.setDirection(DcMotorEx.Direction.FORWARD);
         shootMotor2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        shootMotor2.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
         turretMotor.setDirection(DcMotorEx.Direction.FORWARD);
         turretMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
@@ -110,54 +108,37 @@ public class OuttakeSubsystem {
             return;
         }
 
-        // This "Smooths" the voltage readings
-        // It ignores sudden spikes from the drivetrain but tracks the battery's real
-        // state
-        double instantVoltage = voltageSensor.getVoltage();
-        filteredVoltage = (LPF_COEFFICIENT * filteredVoltage) + ((1 - LPF_COEFFICIENT) * instantVoltage);
-
-        // DIRECT POWER (Ramping removed)
-        shootMotor.setPower(targetBasePower);
-        shootMotor2.setPower(targetBasePower);
+        // DIRECT VELOCITY
+        shootMotor.setVelocity(targetVelocity);
+        shootMotor2.setVelocity(targetVelocity);
 
         // Update Turret PID
         updateTurretPID();
     }
 
     public void updateAutoAimPower(double deltaX, double deltaY) {
-        // 1. CALCULATE DYNAMIC POWER
+        // 1. CALCULATE DYNAMIC VELOCITY
         double distance = Math.hypot(deltaX, deltaY);
 
-        // Linear formula: Power = MinPower + (Dist * Scale) + ManualOffset
-        double basePower = MIN_SHOOT_POWER + (distance * POWER_DISTANCE_SCALING) + manualPowerOffset;
+        // Linear formula: PowerRatio = MinPower + (Dist * Scale) + ManualOffset
+        double powerRatio = MIN_SHOOT_POWER + (distance * POWER_DISTANCE_SCALING) + manualPowerOffset;
 
-        // Apply Voltage Compensation
-        double voltageComp = VOLTAGE / filteredVoltage;
+        // Convert to Velocity Ticks/Sec (PIDF handles voltage compensation)
+        targetVelocity = powerRatio * MAX_VELOCITY;
 
-        targetBasePower = basePower * voltageComp;
-
-        // 2. CLAMP AND APPLY
-        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));
+        // Clamp and update base power for telemetry
+        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(powerRatio, MAX_SHOOT_POWER));
+        targetVelocity = Math.max(MIN_SHOOT_POWER * MAX_VELOCITY, Math.min(targetVelocity, MAX_VELOCITY));
     }
 
     public void updateStaticPower() {
-        // Apply Voltage Compensation to the static AUTO_SHOOT_POWER
-        double voltageComp = VOLTAGE / filteredVoltage;
-
-        targetBasePower = (AUTO_SHOOT_POWER + manualPowerOffset) * voltageComp;
-
-        // Clamp to [MIN, MAX]
-        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));
+        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(AUTO_SHOOT_POWER + manualPowerOffset, MAX_SHOOT_POWER));
+        targetVelocity = targetBasePower * MAX_VELOCITY;
     }
 
     public void updateFixedPower(double basePower) {
-        // Apply Voltage Compensation to the provided base power
-        double voltageComp = VOLTAGE / filteredVoltage;
-
-        targetBasePower = (basePower + manualPowerOffset) * voltageComp;
-
-        // Clamp to [MIN, MAX]
-        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(targetBasePower, MAX_SHOOT_POWER));
+        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(basePower + manualPowerOffset, MAX_SHOOT_POWER));
+        targetVelocity = targetBasePower * MAX_VELOCITY;
     }
 
     public void updateAutoAimAngle(double deltaX, double deltaY) {
@@ -237,8 +218,7 @@ public class OuttakeSubsystem {
     }
 
     public boolean isReadyToFire() {
-        // Ready if enabled and velocity is within 5% of our expected target velocity
-        double targetVelocity = targetBasePower * MAX_VELOCITY;
+        // Ready if enabled and velocity is within 10% of our expected target velocity
         double currentVelocity = getVelocity();
         return shootMotorEnabled
                 && (currentVelocity >= targetVelocity * 0.90 && currentVelocity <= targetVelocity * 1.1);
@@ -379,6 +359,13 @@ public class OuttakeSubsystem {
 
     public double getVelocity() {
         return (shootMotor.getVelocity() + shootMotor2.getVelocity()) / 2;
+    }
+
+    public void setFlywheelPIDF(double p, double f) {
+        com.qualcomm.robotcore.hardware.PIDFCoefficients coefficients = new com.qualcomm.robotcore.hardware.PIDFCoefficients(
+                p, 0, 0, f);
+        shootMotor.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
+        shootMotor2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
     }
 
     public void displayTelemetry(Telemetry telemetry) {

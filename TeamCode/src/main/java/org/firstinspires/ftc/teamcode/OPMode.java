@@ -45,15 +45,6 @@ public class OPMode extends OpMode {
     boolean smallBasketLockEnabled = false;
     private double manualHeadingOffset = 0;
     private double manualTurretOffset = 0;
-    // int targetTagId = 1; // Default tag to track, can be adjusted
-    // public static double kP_CHASSIS_TURN = -0.012; // Slight boost from -0.01
-    // baseline
-    // public static double kD_CHASSIS_TURN = 0.0; // Disabled D-term (source of
-    // oscillation)
-    // private double lastChassisError = 0;
-    // private boolean wasChassisLockEnabled = false;
-    // private double lastValidChassisError = 0;
-    // private double lastValidChassisTime = 0;
 
     private final Pose SCORE_POSE_RED = FieldPoses.SCORE.mirror();
     private final Pose SCORE_POSE_BLUE = FieldPoses.SCORE;
@@ -228,7 +219,7 @@ public class OPMode extends OpMode {
          * }
          */
 
-        // 3. DRIVING LOGIC
+        // 3. DRIVING & AIM LOGIC
         if (!automatedDrive) {
             if (slowMode) {
                 drive *= slowModeMultiplier;
@@ -236,24 +227,11 @@ public class OPMode extends OpMode {
                 turn *= slowModeMultiplier;
             }
 
-            if (chassisLockEnabled || smallBasketLockEnabled) {
-                if (Math.abs(gamepad1.right_stick_x) > 0.1) {
-                    manualHeadingOffset -= gamepad1.right_stick_x * 0.015; // Tunable sensitivity
-                }
-
-                // Determine lock target based on Alliance (targetPose is set in toggles)
+            // SHARED DYNAMIC AIM (Triggers for Turret or Chassis Lock)
+            if (chassisLockEnabled || smallBasketLockEnabled || turretLockEnabled) {
                 double deltaX = targetPose.getX() - follower.getPose().getX();
                 double deltaY = targetPose.getY() - follower.getPose().getY();
-                double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
-                /*
-                 * Telemetry if needed
-                 * telemetry.addData("Angle to Score", Math.toDegrees(angleToScore));
-                 * telemetry.addData("Delta X", deltaX);
-                 * telemetry.addData("Delta Y", deltaY);
-                 * telemetry.addData("Distance", Math.hypot(deltaX, deltaY));
-                 */
 
-                // Subsystem logic
                 if (smallBasketLockEnabled) {
                     outtakeSubsystem.updateFixedPower(0.75);
                     outtakeSubsystem.SetAngle(1);
@@ -262,26 +240,36 @@ public class OPMode extends OpMode {
                     outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
                 }
 
-                // Calculate Heading Error
-                double currentHeading = follower.getPose().getHeading();
-                double headingError = angleToScore - currentHeading;
+                // Specific Chassis Lock Driving
+                if (chassisLockEnabled || smallBasketLockEnabled) {
+                    if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+                        manualHeadingOffset -= gamepad1.right_stick_x * 0.015; // Tunable sensitivity
+                    }
 
-                // Normalize the error so the robot takes the shortest path
-                while (headingError > Math.PI)
-                    headingError -= 2 * Math.PI;
-                while (headingError < -Math.PI)
-                    headingError += 2 * Math.PI;
+                    double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
 
-                // Force the Power (Manual P-Loop)
-                // We use a multiplier (2.0) to convert the error into motor power.
-                // If it doesn't turn, we increase this number.
-                double autoTurnPower = headingError * 1.0;
+                    // Calculate Heading Error
+                    double currentHeading = follower.getPose().getHeading();
+                    double headingError = angleToScore - currentHeading;
 
-                // "POWER STEERING" LOCK:
-                follower.setTeleOpDrive(drive, strafe, autoTurnPower, false, angleToScore);
+                    // Normalize the error so the robot takes the shortest path
+                    while (headingError > Math.PI)
+                        headingError -= 2 * Math.PI;
+                    while (headingError < -Math.PI)
+                        headingError += 2 * Math.PI;
+
+                    // Force the Power (Manual P-Loop)
+                    double autoTurnPower = headingError * 1.0;
+
+                    // "POWER STEERING" LOCK:
+                    follower.setTeleOpDrive(drive, strafe, autoTurnPower, false, angleToScore);
+                } else {
+                    // Manual Driving but with Dynamic Aim active (Turret Lock is on)
+                    follower.setTeleOpDrive(drive, strafe, turn, false, PoseStorage.allianceOffset);
+                }
 
             } else {
-                // STANDARD FIELD-CENTRIC
+                // STANDARD FIELD-CENTRIC (No Locks Active)
                 follower.setTeleOpDrive(drive, strafe, turn, false, PoseStorage.allianceOffset);
             }
         }
