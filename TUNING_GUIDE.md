@@ -16,20 +16,13 @@ Before tuning PIDF, you must find the motor's true capacity.
 3. Update `MAX_VELOCITY` in `OuttakeSubsystem.java` (Line 54).
    - *Example*: If you see 5100, set `MAX_VELOCITY = 5100;`. This provides the benchmark for all dynamic calculations.
 
-### STEP B: Interactive PIDF Tuning
-**Tuning OpMode**: [FlywheelTuningOpMode.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode/tuning/FlywheelTuningOpMode.java)
-
-| Variable | Description | Tuning Tips |
-| :--- | :--- | :--- |
-| `flywheelF` | Feedforward Gain. | **Start here**. Increase until the flywheel reaches ~95% of target with P=0. |
-| `flywheelP` | Proportional Gain. | Increase after setting F to eliminate recovery dip after shots. |
-| `targetVelocity`| Test RPM. | Toggle between 4800 and 4000 RPM using Gamepad 1 [Y]. |
-
 **Tuning Controls (Gamepad 1)**:
-- **[Y]**: Toggle Target Velocity (4800 / 4000).
+- **[Y]**: Toggle High Velocity (4800 / 4000).
+- **[X]**: Toggle Low Velocity (1000) for friction test.
 - **[B]**: Cycle Step Size (10, 1, 0.1, 0.01, 0.001).
-- **Dpad Up/Down**: Adjust **P** value.
-- **Dpad Left/Right**: Adjust **F** value.
+- **Dpad Up/Down**: Adjust **P**.
+- **Dpad Right/Left**: Adjust **Velocity F** (kV).
+- **Bumpers R/L**: Adjust **Static F** (kS).
 
 ### STEP C: Dynamic Distance Integration
 In matches, the robot automatically calculates:

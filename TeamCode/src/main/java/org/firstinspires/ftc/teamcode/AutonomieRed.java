@@ -364,14 +364,13 @@ public class AutonomieRed extends OpMode {
         outtakeSubsystem.update();
 
         if (dynamicAimStarted) {
-            // Calculate Distance to Bucket (LOCK_POSE mirror for Red)
+            // Centralized Dynamic Aim (Power & Angle)
             double deltaX = targetPose.getX() - currentPose.getX();
             double deltaY = targetPose.getY() - currentPose.getY();
-
             outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
             outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
         } else {
-            // High-power spin-up while traveling to first position
+            // Static spin-up (PIDF-consistent)
             outtakeSubsystem.SetShootMotorPower(0.72);
             outtakeSubsystem.AutoAngle();
         }

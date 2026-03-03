@@ -19,6 +19,13 @@ public class OuttakeSubsystem {
     public double targetVelocity = 4800;
     public double flywheelP = 0;
     public double flywheelF = 0;
+    public double flywheelStaticF = 0;
+    private double lastAppliedTarget = -1;
+    private double lastAppliedP = -1;
+    private double lastAppliedF_base = -1;
+    private double lastAppliedStaticF = -1;
+    private final ElapsedTime pidfUpdateTimer = new ElapsedTime();
+    private static final double PIDF_UPDATE_INTERVAL_MS = 100; // Update max 10 times per second
 
     public static double DEFAULT_SHOOT_POWER = 0.7;
     private boolean shootMotorEnabled = false;
@@ -109,6 +116,7 @@ public class OuttakeSubsystem {
         }
 
         // DIRECT VELOCITY
+        updatePIDF(); // Recalculate F based on targetVelocity
         shootMotor.setVelocity(targetVelocity);
         shootMotor2.setVelocity(targetVelocity);
 
@@ -174,6 +182,7 @@ public class OuttakeSubsystem {
 
     public void SetShootMotorPower(double power) {
         targetBasePower = power;
+        targetVelocity = power * MAX_VELOCITY;
         shootMotorEnabled = (power > 0);
     }
 
@@ -361,11 +370,39 @@ public class OuttakeSubsystem {
         return (shootMotor.getVelocity() + shootMotor2.getVelocity()) / 2;
     }
 
-    public void setFlywheelPIDF(double p, double f) {
-        com.qualcomm.robotcore.hardware.PIDFCoefficients coefficients = new com.qualcomm.robotcore.hardware.PIDFCoefficients(
-                p, 0, 0, f);
-        shootMotor.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
-        shootMotor2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
+    public void setFlywheelPIDF(double p, double f, double s) {
+        this.flywheelP = p;
+        this.flywheelF = f;
+        this.flywheelStaticF = s;
+    }
+
+    private void updatePIDF() {
+        // Only consider an update if enough time has passed to protect loop performance
+        if (pidfUpdateTimer.milliseconds() < PIDF_UPDATE_INTERVAL_MS)
+            return;
+
+        double appliedF = flywheelF;
+        if (targetVelocity > 1) {
+            appliedF += (flywheelStaticF / targetVelocity);
+        }
+
+        // Only update if it's a SIGNIFICANT change (>100 ticks) OR coefficients changed
+        if (Math.abs(targetVelocity - lastAppliedTarget) > 100 ||
+                flywheelP != lastAppliedP ||
+                flywheelF != lastAppliedF_base ||
+                flywheelStaticF != lastAppliedStaticF) {
+
+            com.qualcomm.robotcore.hardware.PIDFCoefficients coefficients = new com.qualcomm.robotcore.hardware.PIDFCoefficients(
+                    flywheelP, 0, 0, appliedF);
+            shootMotor.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
+            shootMotor2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
+
+            lastAppliedTarget = targetVelocity;
+            lastAppliedP = flywheelP;
+            lastAppliedF_base = flywheelF;
+            lastAppliedStaticF = flywheelStaticF;
+            pidfUpdateTimer.reset();
+        }
     }
 
     public void displayTelemetry(Telemetry telemetry) {

@@ -11,7 +11,9 @@ public class FlywheelTuningOpMode extends LinearOpMode {
     private int stepIndex = 1; // Default to 1.0
 
     private boolean lastY = false;
+    private boolean lastX = false;
     private boolean lastB = false;
+    private double lastHighVelocity = 4800;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -24,11 +26,23 @@ public class FlywheelTuningOpMode extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
-            // Edge detection for targetVelocity toggle
+            // Edge detection for targetVelocity toggle (4800 -> 4000 -> 1000)
+            // High Speed Toggle (4800 / 4000)
             if (gamepad1.y && !lastY) {
-                outtake.targetVelocity = (outtake.targetVelocity == 1500) ? 900 : 1500;
+                outtake.targetVelocity = (outtake.targetVelocity == 4800) ? 4000 : 4800;
             }
             lastY = gamepad1.y;
+
+            // Low Speed Toggle (1000)
+            if (gamepad1.x && !lastX) {
+                if (outtake.targetVelocity != 1000) {
+                    lastHighVelocity = outtake.targetVelocity;
+                    outtake.targetVelocity = 1000;
+                } else {
+                    outtake.targetVelocity = lastHighVelocity;
+                }
+            }
+            lastX = gamepad1.x;
 
             // Edge detection for step size cycle
             if (gamepad1.b && !lastB) {
@@ -38,22 +52,26 @@ public class FlywheelTuningOpMode extends LinearOpMode {
 
             double currentStep = stepSizes[stepIndex];
 
-            // P adjustment
-            if (gamepad1.dpad_up) {
+            // P adjustment (Dpad Up/Down)
+            if (gamepad1.dpad_up)
                 outtake.flywheelP += currentStep;
-            } else if (gamepad1.dpad_down) {
+            else if (gamepad1.dpad_down)
                 outtake.flywheelP -= currentStep;
-            }
 
-            // F adjustment
-            if (gamepad1.dpad_right) {
+            // Velocity F (kV) adjustment (Dpad Right/Left)
+            if (gamepad1.dpad_right)
                 outtake.flywheelF += currentStep;
-            } else if (gamepad1.dpad_left) {
+            else if (gamepad1.dpad_left)
                 outtake.flywheelF -= currentStep;
-            }
+
+            // Static F (kS) adjustment (Bumpers)
+            if (gamepad1.right_bumper)
+                outtake.flywheelStaticF += currentStep;
+            else if (gamepad1.left_bumper)
+                outtake.flywheelStaticF -= currentStep;
 
             // Apply coefficients every loop
-            outtake.setFlywheelPIDF(outtake.flywheelP, outtake.flywheelF);
+            outtake.setFlywheelPIDF(outtake.flywheelP, outtake.flywheelF, outtake.flywheelStaticF);
 
             // Update motor power/velocity
             outtake.update();
@@ -62,8 +80,10 @@ public class FlywheelTuningOpMode extends LinearOpMode {
             telemetry.addData("Target Velocity", outtake.targetVelocity);
             telemetry.addData("Current Velocity", outtake.getVelocity());
             telemetry.addData("Error", outtake.targetVelocity - outtake.getVelocity());
-            telemetry.addData("P", outtake.flywheelP);
-            telemetry.addData("F", outtake.flywheelF);
+            telemetry.addLine("--- PIDF Coefficients ---");
+            telemetry.addData("P (Dpad Up/Down)", "%.4f", outtake.flywheelP);
+            telemetry.addData("Velocity F (Dpad R/L)", "%.6f", outtake.flywheelF);
+            telemetry.addData("Static F (Bumpers)", "%.4f", outtake.flywheelStaticF);
             telemetry.addData("Step Size", currentStep);
             telemetry.update();
         }
