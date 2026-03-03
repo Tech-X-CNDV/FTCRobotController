@@ -13,7 +13,7 @@ public class FlywheelTuningOpMode extends LinearOpMode {
     private boolean lastY = false;
     private boolean lastX = false;
     private boolean lastB = false;
-    private double lastHighVelocity = 4800;
+    private double lastHighVelocity = 3200;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -26,10 +26,9 @@ public class FlywheelTuningOpMode extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
-            // Edge detection for targetVelocity toggle (4800 -> 4000 -> 1000)
-            // High Speed Toggle (4800 / 4000)
+            // High Speed Toggle (3200 / 2000)
             if (gamepad1.y && !lastY) {
-                outtake.targetVelocity = (outtake.targetVelocity == 4800) ? 4000 : 4800;
+                outtake.targetVelocity = (outtake.targetVelocity == 3200) ? 2000 : 3200;
             }
             lastY = gamepad1.y;
 

@@ -16,6 +16,18 @@ Before tuning PIDF, you must find the motor's true capacity.
 3. Update `MAX_VELOCITY` in `OuttakeSubsystem.java` (Line 54).
    - *Example*: If you see 5100, set `MAX_VELOCITY = 5100;`. This provides the benchmark for all dynamic calculations.
 
+### STEP B: Interactive PIDF Tuning
+**Tuning OpMode**: [FlywheelTuningOpMode.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode/tuning/FlywheelTuningOpMode.java)
+
+The system uses a **Dual-F Model** to account for non-linear friction:
+`Actual_F = Velocity_F + (Static_F / Target_Velocity)`
+
+| Variable | Description | Tuning Tips |
+| :--- | :--- | :--- |
+| `Static F` (kS)| Static Friction. | **TUNE FIRST**. Increase until the flywheel just starts spinning at low targets (e.g. 1000). |
+| `Velocity F` (kV)| Proportional F. | Increase after kS until you reach ~95% of target at high speed (4800). |
+| `flywheelP` | Proportional Gain. | Increase last to eliminate recovery dip and small errors. |
+
 **Tuning Controls (Gamepad 1)**:
 - **[Y]**: Toggle High Velocity (4800 / 4000).
 - **[X]**: Toggle Low Velocity (1000) for friction test.
