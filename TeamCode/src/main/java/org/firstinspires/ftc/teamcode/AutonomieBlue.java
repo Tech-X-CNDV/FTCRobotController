@@ -26,7 +26,7 @@ public class AutonomieBlue extends OpMode {
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
     IntakeSubsytem intakeSubsytem;
-    private boolean dynamicAimStarted = false;
+    private boolean shootingStarted = false; // guards StartShooting() so it is only called once per state
     private final ElapsedTime timer = new ElapsedTime();
     private final ElapsedTime matchTimer = new ElapsedTime();
     private double lastTime = 0;
@@ -139,18 +139,16 @@ public class AutonomieBlue extends OpMode {
                 break;
             case 1: // SHOOTING: Preload
                 if (!isBusy) {
-                    dynamicAimStarted = true;
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * storageSubsystem.setServoPos(1);
-                     * follower.setMaxPower(1);
-                     * setPathState(2); // Move to Alignment
-                     * }
-                     */
-                    follower.setMaxPower(1);
-                    setPathState(2);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    // Wait until the full shot sequence has completed before moving on
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        follower.setMaxPower(1);
+                        setPathState(2);
+                    }
                 }
                 break;
             // ================= PICKUP 1 SEQUENCE =================
@@ -187,19 +185,16 @@ public class AutonomieBlue extends OpMode {
                 break;
             case 6: // SHOOTING 1
                 if (!isBusy) {
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * intakeSubsytem.setPower(0);
-                     * storageSubsystem.setServoPos(1);
-                     * follower.followPath(path5); // Align to Pickup 2
-                     * setPathState(7);
-                     * }
-                     */
                     intakeSubsytem.setPower(0);
-                    follower.followPath(path5);
-                    setPathState(7);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        follower.followPath(path5); // Align to Pickup 2
+                        setPathState(7);
+                    }
                 }
                 break;
             // ================= PICKUP 2 SEQUENCE =================
@@ -229,19 +224,16 @@ public class AutonomieBlue extends OpMode {
                 break;
             case 10: // SHOOTING 2
                 if (!isBusy) {
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * intakeSubsytem.setPower(0);
-                     * storageSubsystem.setServoPos(1);
-                     * follower.followPath(path9); // Align to Pickup 3
-                     * setPathState(11);
-                     * }
-                     */
                     intakeSubsytem.setPower(0);
-                    follower.followPath(path9);
-                    setPathState(11);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        follower.followPath(path9); // Align to Pickup 3
+                        setPathState(11);
+                    }
                 }
                 break;
             // ================= PICKUP 3 SEQUENCE =================
@@ -273,21 +265,17 @@ public class AutonomieBlue extends OpMode {
                 break;
             case 14: // SHOOTING 3
                 if (!isBusy) {
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * intakeSubsytem.setPower(0);
-                     * storageSubsystem.setServoPos(1);
-                     * outtakeSubsystem.SetShootMotorPower(0);
-                     * follower.followPath(path8, true); // Park
-                     * setPathState(15);
-                     * }
-                     */
                     intakeSubsytem.setPower(0);
-                    outtakeSubsystem.SetShootMotorPower(0);
-                    follower.followPath(path8, true);
-                    setPathState(15);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        outtakeSubsystem.SetShootMotorPower(0);
+                        follower.followPath(path8, true); // Park
+                        setPathState(15);
+                    }
                 }
                 break;
             case 15: // PARK COMPLETION
@@ -309,8 +297,8 @@ public class AutonomieBlue extends OpMode {
         outtakeSubsystem.InitOuttake();
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
+        storageSubsystem.InitStorage();
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
-        // storageSubsystem.InitStorage();
 
         intakeSubsytem = new IntakeSubsytem(hardwareMap);
         intakeSubsytem.InitIntake();
@@ -330,9 +318,6 @@ public class AutonomieBlue extends OpMode {
     public void start() {
         pathTimer.resetTimer();
         matchTimer.reset();
-        outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(0.72);
-        dynamicAimStarted = false;
         PoseStorage.isRed = false;
         PoseStorage.allianceOffset = Math.toRadians(180);
         setPathState(0);
@@ -348,20 +333,14 @@ public class AutonomieBlue extends OpMode {
         Pose currentPose = follower.getPose();
 
         follower.update();
-        // storageSubsystem.update();
+        storageSubsystem.update();
         outtakeSubsystem.update();
 
-        if (dynamicAimStarted) {
-            // Centralized Dynamic Aim (Power & Angle)
-            double deltaX = targetPose.getX() - currentPose.getX();
-            double deltaY = targetPose.getY() - currentPose.getY();
-            outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
-            outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
-        } else {
-            // Static spin-up (PIDF-consistent)
-            outtakeSubsystem.SetShootMotorPower(0.72);
-            outtakeSubsystem.AutoAngle();
-        }
+        // Centralized Dynamic Aim (Power & Angle) — always active
+        double deltaX = targetPose.getX() - currentPose.getX();
+        double deltaY = targetPose.getY() - currentPose.getY();
+        outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
+        outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
 
         // --- 30s FAILSAFE GUARDIAN ---
         if (matchTimer.seconds() > 29.8) {
@@ -394,7 +373,7 @@ public class AutonomieBlue extends OpMode {
 
         // --- SUBSYSTEMS TELEMETRY ---
         intakeSubsytem.displayTelemetry(telemetry);
-        // storageSubsystem.displayTelemetry(telemetry);
+        storageSubsystem.displayTelemetry(telemetry);
         outtakeSubsystem.displayTelemetry(telemetry);
 
         telemetry.update();

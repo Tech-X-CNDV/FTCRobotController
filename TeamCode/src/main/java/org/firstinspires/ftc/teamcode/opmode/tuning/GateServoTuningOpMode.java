@@ -28,7 +28,7 @@ public class GateServoTuningOpMode extends LinearOpMode {
 
             if (gamepad1.a) {
                 // Move to position 1.0 when 'A' is pressed
-                myServo.setPosition(0.21);
+                myServo.setPosition(0.235);
             } else {
                 // Return to position 0.0 when 'A' is released
                 myServo.setPosition(0);

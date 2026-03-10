@@ -20,9 +20,9 @@ public class OuttakeSubsystem {
     private final DcMotorEx turretEncoder;
 
     public double targetVelocity = 2000;
-    public double flywheelP = 30;
-    public double flywheelF = 12.150;
-    public double flywheelStaticF = 0.03;
+    public double flywheelP = 50;
+    public double flywheelF = 13.350;
+    public double flywheelStaticF = 0.01;
     private double lastAppliedTarget = -1;
     private double lastAppliedP = -1;
     private double lastAppliedF_base = -1;
@@ -49,7 +49,7 @@ public class OuttakeSubsystem {
     private static boolean hasBeenReset = false;
 
     private double turretTargetAngleDeg = 0;
-    public int TARGET_TAG_ID = 1;
+    public int TARGET_TAG_ID = 999; // bypass husky for now
     private boolean isHuskyLock = false;
     private boolean autoAimEnabled = false;
 
@@ -70,7 +70,7 @@ public class OuttakeSubsystem {
     public static double MIN_SHOOT_VELOCITY = 1300; // Ticks/sec for close shots
     public static double MAX_SHOOT_VELOCITY = 2770; // Ticks/sec for far shots (also used as hard clamp)
     public static double MAX_VELOCITY = 2770; // Absolute max the motor can physically do
-    public static double VELOCITY_DISTANCE_SCALING = 5; // Extra ticks/sec per cm of distance
+    public static double VELOCITY_DISTANCE_SCALING = 5.5; // Extra ticks/sec per cm of distance
 
     // Angle Distance Scaling for outtake angle
     private final double CLOSE_DIST = 30.0;
@@ -95,7 +95,7 @@ public class OuttakeSubsystem {
 
         shootMotor.setDirection(DcMotorEx.Direction.FORWARD);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
         shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
@@ -132,13 +132,21 @@ public class OuttakeSubsystem {
             shootMotor.setPower(0);
             shootMotor2.setPower(0);
         } else {
-            // DIRECT VELOCITY
-            updatePIDF(); // Recalculate F based on targetVelocity
-            shootMotor.setVelocity(targetVelocity);
+            updatePIDF(); // Updates coefficients for Motor 1
+
+            // 1. Set the Velocity for the "Master" motor
             shootMotor2.setVelocity(targetVelocity);
+
+            // 2. Get the power the Master is currently using to hit that target
+            double masterPower = shootMotor2.getPower();
+
+            // 3. Tell the Slave to just follow that power exactly
+            // We switch the Slave to RUN_WITHOUT_ENCODER so its internal
+            // PID doesn't try to "think" or fight back.
+            shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+            shootMotor.setPower(masterPower);
         }
 
-        // Always run turret PID loop
         updateTurretPID();
     }
 
@@ -184,6 +192,14 @@ public class OuttakeSubsystem {
 
     public void ToggleShootMotor() {
         shootMotorEnabled = !shootMotorEnabled;
+    }
+
+    public void StartShootMotor() {
+        shootMotorEnabled = true;
+    }
+
+    public void StopShootMotor() {
+        shootMotorEnabled = false;
     }
 
     public void ToggleShootMotorAuto() {
@@ -289,17 +305,17 @@ public class OuttakeSubsystem {
 
         if (targetBlock != null) {
             // Precise Lock using HuskyLens
-            double visualErrorDeg = (targetBlock.x - 160) * (HUSKYLENS_FOV_DEG / 320.0);
+            double visualErrorDeg = -(targetBlock.x - 160) * (HUSKYLENS_FOV_DEG / 320.0);
 
             // Add relative visual error to our current absolute target
-            double rawTargetDeg = turretTargetAngleDeg + visualErrorDeg + (manualOffset * 57.2958);
+            double rawTargetDeg = turretTargetAngleDeg + visualErrorDeg +
+                    (manualOffset * 57.2958);
 
             // Note: In visual mode, we dampen the update to prevent crazy oscillation if
             // the tag shakes
             // A simple proportional approach is often better than raw absolute summing
-            turretTargetAngleDeg = turretTargetAngleDeg + (rawTargetDeg - turretTargetAngleDeg) * 0.3; // Very basic
-                                                                                                       // P-gain for
-                                                                                                       // vision
+            turretTargetAngleDeg = turretTargetAngleDeg +
+                    (rawTargetDeg - turretTargetAngleDeg) * 0.3;
 
             isHuskyLock = true;
         } else {
@@ -308,7 +324,8 @@ public class OuttakeSubsystem {
             double deltaY = targetPose.getY() - robotPose.getY();
 
             double angleToTarget = Math.atan2(deltaY, deltaX);
-            double relativeAngle = angleToTarget - robotPose.getHeading() + Math.toRadians(5) + manualOffset;
+            double relativeAngle = angleToTarget - robotPose.getHeading() +
+                    Math.toRadians(5) + manualOffset;
 
             while (relativeAngle > Math.PI)
                 relativeAngle -= 2 * Math.PI;
@@ -422,7 +439,7 @@ public class OuttakeSubsystem {
     }
 
     public double getVelocity() {
-        return (shootMotor.getVelocity() + shootMotor2.getVelocity()) / 2;
+        return shootMotor2.getVelocity();
     }
 
     public void setFlywheelPIDF(double p, double f, double s) {
@@ -472,6 +489,9 @@ public class OuttakeSubsystem {
     }
 
     public void displayTelemetry(Telemetry telemetry) {
+        if (shootMotorEnabled) {
+            telemetry.addLine("<h1><font color='#ff0000ff'>*** SHOOT MOTOR ENABLED ***</font></h1>");
+        }
         if (isReadyToFire()) {
             telemetry.addLine("<h1><font color='#00FF00'>*** READY TO FIRE ***</font></h1>");
         } else if (shootMotorEnabled) {

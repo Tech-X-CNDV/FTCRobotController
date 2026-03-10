@@ -87,7 +87,7 @@ public class OPMode extends OpMode {
 
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
-        outtakeSubsystem.TARGET_TAG_ID = PoseStorage.isRed ? 2 : 1;
+        // outtakeSubsystem.TARGET_TAG_ID = PoseStorage.isRed ? 2 : 1; // bypass for now
 
         telemetry.addData("Status", "Initialized");
 
@@ -295,7 +295,7 @@ public class OPMode extends OpMode {
     private void handleOperatorControls() {
         // Storage & Indexing
         if (gamepad2.xWasPressed()) {
-            // outtakeSubsystem.ToggleShootMotor();
+            outtakeSubsystem.StartShootMotor();
             storageSubsystem.StartShooting();
         }
 
@@ -307,13 +307,22 @@ public class OPMode extends OpMode {
             outtakeSubsystem.ToggleShootMotor();
         }
 
-        // Manual Storage Override
+        // Manual Storage Override & Control
         if (gamepad2.left_trigger_pressed) {
             outtakeSubsystem.SetShootMotorPower(0);
-            storageSubsystem.Abort();
+            // Use horizontal joystick (X-axis) for manual storage movement
+            storageSubsystem.Abort(gamepad2.left_stick_x);
         } else {
             if (turretLockEnabled && Math.abs(gamepad2.right_stick_x) > 0.1) {
                 manualTurretOffset -= gamepad2.right_stick_x * 0.01; // Tunable sensitivity
+            }
+
+            // Manual Shooter Velocity Offset (Persistent, +/- ticks/sec)
+            // DISABLED while manual storage is active
+            if (Math.abs(gamepad2.left_stick_y) > 0.1) {
+                double currentOffset = outtakeSubsystem.getManualVelocityOffset();
+                // Up = Positive Velocity Boost (gamepad Y is reversed)
+                outtakeSubsystem.setManualVelocityOffset(currentOffset - (gamepad2.left_stick_y * 5.0));
             }
         }
 
@@ -326,8 +335,6 @@ public class OPMode extends OpMode {
         }
 
         // Outtake & Turret
-        // if (gamepad2.aWasPressed())
-        // outtakeSubsystem.ToggleShootMotor();
         if (gamepad2.yWasPressed()) {
             turretLockEnabled = !turretLockEnabled;
             if (!turretLockEnabled)
@@ -351,13 +358,6 @@ public class OPMode extends OpMode {
             } else {
                 outtakeSubsystem.DecreaseDirectAngle();
             }
-        }
-
-        // Manual Shooter Velocity Offset (Persistent, +/- ticks/sec)
-        if (Math.abs(gamepad2.left_stick_y) > 0.1) {
-            double currentOffset = outtakeSubsystem.getManualVelocityOffset();
-            // Up = Positive Velocity Boost (gamepad Y is reversed)
-            outtakeSubsystem.setManualVelocityOffset(currentOffset - (gamepad2.left_stick_y * 5.0));
         }
     }
 
