@@ -320,6 +320,9 @@ public class AutonomieBlue extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         buildPaths();
         follower.setStartingPose(startPose);
+        PoseStorage.allianceOffset = Math.toRadians(180);
+        PoseStorage.isRed = false;
+        PoseStorage.autoPoseBlue = startPose;
         targetPose = LOCK_POSE;
     }
 
@@ -399,6 +402,6 @@ public class AutonomieBlue extends OpMode {
 
     @Override
     public void stop() {
-        PoseStorage.autoPoseBlue = follower.getPose();
+        // PoseStorage.autoPoseBlue = follower.getPose();
     }
 }

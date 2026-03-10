@@ -109,7 +109,7 @@ public class AutoMicBlue extends OpMode {
                 break;
             case 4:
                 if (!follower.isBusy()) {
-                    storageSubsystem.autoThrow = true;
+                    // storageSubsystem.autoThrow = true;
                     setPathState(5);
                 } else {
                     // storageSubsystem.MoveRelative(475, 1);

@@ -24,6 +24,9 @@ public class MaxVelocityTuningOpMode extends LinearOpMode {
         motor1.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         motor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
+        motor1.setDirection(DcMotorEx.Direction.FORWARD);
+        motor2.setDirection(DcMotorEx.Direction.REVERSE);
+
         telemetry.addLine("Max Velocity Tuning Initialized");
         telemetry.addLine("This will run motors at 1.0 POWER!");
         telemetry.update();

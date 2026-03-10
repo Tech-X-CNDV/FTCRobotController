@@ -28,15 +28,18 @@ public class FlywheelTuningOpMode extends LinearOpMode {
         while (opModeIsActive()) {
             // High Speed Toggle (3200 / 2000)
             if (gamepad1.y && !lastY) {
-                outtake.targetVelocity = (outtake.targetVelocity == 3200) ? 2000 : 3200;
+                outtake.targetVelocity = (outtake.targetVelocity == 2200) ? 1500 : 2200;
             }
             lastY = gamepad1.y;
 
+            if (gamepad1.aWasPressed())
+                outtake.ToggleShootMotor();
+
             // Low Speed Toggle (1000)
             if (gamepad1.x && !lastX) {
-                if (outtake.targetVelocity != 1000) {
+                if (outtake.targetVelocity != 100) {
                     lastHighVelocity = outtake.targetVelocity;
-                    outtake.targetVelocity = 1000;
+                    outtake.targetVelocity = 100;
                 } else {
                     outtake.targetVelocity = lastHighVelocity;
                 }
@@ -52,21 +55,21 @@ public class FlywheelTuningOpMode extends LinearOpMode {
             double currentStep = stepSizes[stepIndex];
 
             // P adjustment (Dpad Up/Down)
-            if (gamepad1.dpad_up)
+            if (gamepad1.dpadUpWasPressed())
                 outtake.flywheelP += currentStep;
-            else if (gamepad1.dpad_down)
+            else if (gamepad1.dpadDownWasPressed())
                 outtake.flywheelP -= currentStep;
 
             // Velocity F (kV) adjustment (Dpad Right/Left)
-            if (gamepad1.dpad_right)
+            if (gamepad1.dpadRightWasPressed())
                 outtake.flywheelF += currentStep;
-            else if (gamepad1.dpad_left)
+            else if (gamepad1.dpadLeftWasPressed())
                 outtake.flywheelF -= currentStep;
 
             // Static F (kS) adjustment (Bumpers)
-            if (gamepad1.right_bumper)
+            if (gamepad1.rightBumperWasPressed())
                 outtake.flywheelStaticF += currentStep;
-            else if (gamepad1.left_bumper)
+            else if (gamepad1.leftBumperWasPressed())
                 outtake.flywheelStaticF -= currentStep;
 
             // Apply coefficients every loop

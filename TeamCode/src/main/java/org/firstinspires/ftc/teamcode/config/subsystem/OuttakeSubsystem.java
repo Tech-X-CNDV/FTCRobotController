@@ -6,6 +6,7 @@ import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.CRServo;
 
 import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -13,13 +14,15 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 @Configurable
 public class OuttakeSubsystem {
     private final HuskyLens hLens;
-    private final DcMotorEx shootMotor, shootMotor2, turretMotor;
+    private final DcMotorEx shootMotor, shootMotor2;
     private final Servo outtakeAngle;
+    private final CRServo turretServo1, turretServo2;
+    private final DcMotorEx turretEncoder;
 
-    public double targetVelocity = 4800;
-    public double flywheelP = 0;
-    public double flywheelF = 0;
-    public double flywheelStaticF = 0;
+    public double targetVelocity = 2000;
+    public double flywheelP = 30;
+    public double flywheelF = 12.150;
+    public double flywheelStaticF = 0.03;
     private double lastAppliedTarget = -1;
     private double lastAppliedP = -1;
     private double lastAppliedF_base = -1;
@@ -27,53 +30,60 @@ public class OuttakeSubsystem {
     private final ElapsedTime pidfUpdateTimer = new ElapsedTime();
     private static final double PIDF_UPDATE_INTERVAL_MS = 100; // Update max 10 times per second
 
-    public static double DEFAULT_SHOOT_POWER = 0.7;
+    // Flywheel Velocity Constants (ticks/sec)
+    public static double DEFAULT_SHOOT_VELOCITY = 2000; // Default target velocity
+    public static double AUTO_SHOOT_VELOCITY = 2000; // Used by auto-aim static mode
     private boolean shootMotorEnabled = false;
-    private double targetBasePower = 0;
-    private double manualPowerOffset = 0;
+    private double manualVelocityOffset = 0;
     private double manualAngleOffset = 0;
     public static double INITIAL_ANGLE = 0.9;
 
-    // Turret Constants
-    public static double TICKS_PER_DEGREE = 7.78;
-    public static int MAX_TURRET_ANGLE_DEG = 90;
+    // Turret CRServo Constants (Axon Max)
+    public static double MAX_TURRET_ANGLE_DEG = 180; // Expanded limit for Axon
     public static double HUSKYLENS_FOV_DEG = 60.0;
-    private int turretTargetPos = 0;
-    private boolean autoAimEnabled = false;
-    public static double TURRET_TRACKING_POWER = 0.6;
-    public static double TURRET_RESET_POWER = 0.5;
-    public static int TARGET_TAG_ID = 1;
-    public static double AUTO_SHOOT_POWER = 0.75;
+    public static double TURRET_ENCODER_OFFSET_DEG = 0.0; // Subtract from raw reading to zero
+    // If the Through Bore encoder sits on the SERVO shaft and the servo drives a
+    // 10:1 gearbox to the turret, set this to 10.0. Every servo revolution = 1/10
+    // turret revolution, so we must divide encoder ticks by this ratio.
+    public static double TURRET_GEAR_RATIO = 7.46; // 1.0 = encoder is directly on turret shaft. TUNE THIS!
+    private static boolean hasBeenReset = false;
+
+    private double turretTargetAngleDeg = 0;
+    public int TARGET_TAG_ID = 1;
     private boolean isHuskyLock = false;
+    private boolean autoAimEnabled = false;
 
-    // Turret PID Constants (Tune these!)
-    public static double turretP = 0.005;
+    // Turret PID Constants (Tune these for Power control)
+    public static double turretP = 0.04;
     public static double turretI = 0.0001;
-    public static double turretD = 0.0001;
-    public static double turretF = 0.01;
-    public static double turretD_LPF = 0.8; // 0.8 means keep 80% of old value, 20% of new
+    public static double turretD = 0.001;
+    public static double turretF = 0.01; // Static friction feedforward
+    public static double turretD_LPF = 0.8; // Low-pass filter for derivative
 
+    // Turret State
     private double turretIntegralSum = 0;
     private double lastTurretError = 0;
     private double lastFilteredDerivative = 0;
     private final ElapsedTime turretTimer = new ElapsedTime();
 
-    // Power Distance Scaling for shoot motor
-    private final double MIN_SHOOT_POWER = 0.47;
-    private final double MAX_SHOOT_POWER = 1.0;
-    private final double POWER_DISTANCE_SCALING = 0.0012; // Adjust this to tune how hard it shoots
-    public static double MAX_VELOCITY = 5300; // Ticks per second at 1.0 power based on 6000RPM+ headroom. TUNE THIS!
+    // Velocity Distance Scaling for shoot motor
+    public static double MIN_SHOOT_VELOCITY = 1300; // Ticks/sec for close shots
+    public static double MAX_SHOOT_VELOCITY = 2770; // Ticks/sec for far shots (also used as hard clamp)
+    public static double MAX_VELOCITY = 2770; // Absolute max the motor can physically do
+    public static double VELOCITY_DISTANCE_SCALING = 5; // Extra ticks/sec per cm of distance
 
     // Angle Distance Scaling for outtake angle
     private final double CLOSE_DIST = 30.0;
     private final double FAR_DIST = 65.0;
     private final double CLOSE_ANGLE = 0.15;
-    private final double FAR_ANGLE = 0.9;
+    private final double FAR_ANGLE = 0.7;
 
     public OuttakeSubsystem(HardwareMap hardwareMap) {
         shootMotor = hardwareMap.get(DcMotorEx.class, "ShootMotor");
         shootMotor2 = hardwareMap.get(DcMotorEx.class, "ShootMotor2");
-        turretMotor = hardwareMap.get(DcMotorEx.class, "TurretMotor");
+        turretServo1 = hardwareMap.get(CRServo.class, "turretServo1");
+        turretServo2 = hardwareMap.get(CRServo.class, "turretServo2");
+        turretEncoder = hardwareMap.get(DcMotorEx.class, "PrindMotor");
         outtakeAngle = hardwareMap.get(Servo.class, "outtakeAngle");
         hLens = hardwareMap.get(HuskyLens.class, "hLens");
     }
@@ -81,21 +91,30 @@ public class OuttakeSubsystem {
     private boolean huskyLensInitialized = false;
 
     public void InitOuttake() {
-        targetBasePower = DEFAULT_SHOOT_POWER;
+        targetVelocity = DEFAULT_SHOOT_VELOCITY;
 
-        shootMotor.setDirection(DcMotorEx.Direction.REVERSE);
+        shootMotor.setDirection(DcMotorEx.Direction.FORWARD);
         shootMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
-        shootMotor2.setDirection(DcMotorEx.Direction.FORWARD);
+        shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         shootMotor2.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
-        turretMotor.setDirection(DcMotorEx.Direction.FORWARD);
-        turretMotor.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        turretMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-        turretMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-        turretTargetPos = 0;
+        turretServo1.setDirection(CRServo.Direction.REVERSE);
+        turretServo2.setDirection(CRServo.Direction.REVERSE);
+        turretServo1.setPower(0);
+        turretServo2.setPower(0);
+
+        // Reset the encoder so turret starts at 0 degrees wherever it is physically
+        // placed
+        if (!hasBeenReset) {
+            turretEncoder.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+            turretEncoder.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+            hasBeenReset = true;
+        }
+
+        turretTargetAngleDeg = 0; // We start at 0 by definition
         lastFilteredDerivative = 0;
         turretTimer.reset();
     }
@@ -112,41 +131,32 @@ public class OuttakeSubsystem {
         if (!shootMotorEnabled) {
             shootMotor.setPower(0);
             shootMotor2.setPower(0);
-            return;
+        } else {
+            // DIRECT VELOCITY
+            updatePIDF(); // Recalculate F based on targetVelocity
+            shootMotor.setVelocity(targetVelocity);
+            shootMotor2.setVelocity(targetVelocity);
         }
 
-        // DIRECT VELOCITY
-        updatePIDF(); // Recalculate F based on targetVelocity
-        shootMotor.setVelocity(targetVelocity);
-        shootMotor2.setVelocity(targetVelocity);
-
-        // Update Turret PID
+        // Always run turret PID loop
         updateTurretPID();
     }
 
     public void updateAutoAimPower(double deltaX, double deltaY) {
-        // 1. CALCULATE DYNAMIC VELOCITY
         double distance = Math.hypot(deltaX, deltaY);
-
-        // Linear formula: PowerRatio = MinPower + (Dist * Scale) + ManualOffset
-        double powerRatio = MIN_SHOOT_POWER + (distance * POWER_DISTANCE_SCALING) + manualPowerOffset;
-
-        // Convert to Velocity Ticks/Sec (PIDF handles voltage compensation)
-        targetVelocity = powerRatio * MAX_VELOCITY;
-
-        // Clamp and update base power for telemetry
-        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(powerRatio, MAX_SHOOT_POWER));
-        targetVelocity = Math.max(MIN_SHOOT_POWER * MAX_VELOCITY, Math.min(targetVelocity, MAX_VELOCITY));
+        // Velocity scales linearly with distance
+        double velocity = MIN_SHOOT_VELOCITY + (distance * VELOCITY_DISTANCE_SCALING) + manualVelocityOffset;
+        targetVelocity = Math.max(MIN_SHOOT_VELOCITY, Math.min(velocity, MAX_SHOOT_VELOCITY));
     }
 
     public void updateStaticPower() {
-        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(AUTO_SHOOT_POWER + manualPowerOffset, MAX_SHOOT_POWER));
-        targetVelocity = targetBasePower * MAX_VELOCITY;
+        double velocity = AUTO_SHOOT_VELOCITY + manualVelocityOffset;
+        targetVelocity = Math.max(MIN_SHOOT_VELOCITY, Math.min(velocity, MAX_SHOOT_VELOCITY));
     }
 
     public void updateFixedPower(double basePower) {
-        targetBasePower = Math.max(MIN_SHOOT_POWER, Math.min(basePower + manualPowerOffset, MAX_SHOOT_POWER));
-        targetVelocity = targetBasePower * MAX_VELOCITY;
+        // Accept legacy ratio (0.0-1.0) from old callers and convert to velocity
+        targetVelocity = Math.max(MIN_SHOOT_VELOCITY, Math.min(basePower * MAX_VELOCITY, MAX_SHOOT_VELOCITY));
     }
 
     public void updateAutoAimAngle(double deltaX, double deltaY) {
@@ -181,21 +191,41 @@ public class OuttakeSubsystem {
     }
 
     public void SetShootMotorPower(double power) {
-        targetBasePower = power;
+        // Legacy shim: accepts 0.0-1.0 ratio, converts to velocity
         targetVelocity = power * MAX_VELOCITY;
         shootMotorEnabled = (power > 0);
     }
 
-    public double getTargetBasePower() {
-        return targetBasePower;
+    public void setTargetVelocity(double velocityTicksPerSec) {
+        targetVelocity = Math.max(0, Math.min(velocityTicksPerSec, MAX_VELOCITY));
+        shootMotorEnabled = (targetVelocity > 0);
     }
 
-    public void setManualPowerOffset(double offset) {
-        this.manualPowerOffset = offset;
+    public double getTargetVelocity() {
+        return targetVelocity;
     }
 
+    public void setManualVelocityOffset(double offset) {
+        this.manualVelocityOffset = offset;
+    }
+
+    public double getManualVelocityOffset() {
+        return manualVelocityOffset;
+    }
+
+    /** @deprecated Use getManualVelocityOffset() */
     public double getManualPowerOffset() {
-        return manualPowerOffset;
+        return manualVelocityOffset / MAX_VELOCITY;
+    }
+
+    /** @deprecated Use setManualVelocityOffset() */
+    public void setManualPowerOffset(double offset) {
+        this.manualVelocityOffset = offset * MAX_VELOCITY;
+    }
+
+    // Kept for backward compat
+    public double getTargetBasePower() {
+        return targetVelocity / MAX_VELOCITY;
     }
 
     public double getManualAngleOffset() {
@@ -259,111 +289,136 @@ public class OuttakeSubsystem {
 
         if (targetBlock != null) {
             // Precise Lock using HuskyLens
-            // Center is 160, FOV is ~60 degrees
             double visualErrorDeg = (targetBlock.x - 160) * (HUSKYLENS_FOV_DEG / 320.0);
 
-            // RELATIVE UPDATE: Calculate target relative to current position to prevent
-            // "jumps"
-            int currentPos = turretMotor.getCurrentPosition();
-            int errorTicks = (int) (visualErrorDeg * TICKS_PER_DEGREE);
-            int manualOffsetTicks = (int) (manualOffset * 57.2958 * TICKS_PER_DEGREE); // Convert rad to deg then ticks
+            // Add relative visual error to our current absolute target
+            double rawTargetDeg = turretTargetAngleDeg + visualErrorDeg + (manualOffset * 57.2958);
 
-            int potentialTarget = currentPos + errorTicks + manualOffsetTicks;
+            // Note: In visual mode, we dampen the update to prevent crazy oscillation if
+            // the tag shakes
+            // A simple proportional approach is often better than raw absolute summing
+            turretTargetAngleDeg = turretTargetAngleDeg + (rawTargetDeg - turretTargetAngleDeg) * 0.3; // Very basic
+                                                                                                       // P-gain for
+                                                                                                       // vision
 
-            // Clamp to physical limits in degrees before setting
-            double potentialTargetDeg = potentialTarget / TICKS_PER_DEGREE;
-            if (potentialTargetDeg > MAX_TURRET_ANGLE_DEG)
-                potentialTargetDeg = MAX_TURRET_ANGLE_DEG;
-            if (potentialTargetDeg < -MAX_TURRET_ANGLE_DEG)
-                potentialTargetDeg = -MAX_TURRET_ANGLE_DEG;
-
-            turretTargetPos = (int) (potentialTargetDeg * TICKS_PER_DEGREE);
             isHuskyLock = true;
         } else {
             // Fallback to Pedro Pathing Pose Lock
             double deltaX = targetPose.getX() - robotPose.getX();
             double deltaY = targetPose.getY() - robotPose.getY();
 
-            // Calculate absolute angle to target
             double angleToTarget = Math.atan2(deltaY, deltaX);
+            double relativeAngle = angleToTarget - robotPose.getHeading() + Math.toRadians(5) + manualOffset;
 
-            // Calculate relative angle for turret (target - robot heading)
-            double relativeAngle = angleToTarget - robotPose.getHeading() + manualOffset;
-
-            // Normalize relative angle to [-PI, PI]
             while (relativeAngle > Math.PI)
                 relativeAngle -= 2 * Math.PI;
             while (relativeAngle < -Math.PI)
                 relativeAngle += 2 * Math.PI;
 
-            double targetAngleDeg = Math.toDegrees(relativeAngle);
-
-            // Clamp to physical limits
-            if (targetAngleDeg > MAX_TURRET_ANGLE_DEG)
-                targetAngleDeg = MAX_TURRET_ANGLE_DEG;
-            if (targetAngleDeg < -MAX_TURRET_ANGLE_DEG)
-                targetAngleDeg = -MAX_TURRET_ANGLE_DEG;
-
-            turretTargetPos = (int) (targetAngleDeg * TICKS_PER_DEGREE);
+            turretTargetAngleDeg = Math.toDegrees(relativeAngle);
             isHuskyLock = false;
         }
+
+        // Target angle is naturally constrained by the physical robot, but we can clamp
+        // the target here
+        if (turretTargetAngleDeg > MAX_TURRET_ANGLE_DEG)
+            turretTargetAngleDeg = MAX_TURRET_ANGLE_DEG;
+        if (turretTargetAngleDeg < -MAX_TURRET_ANGLE_DEG)
+            turretTargetAngleDeg = -MAX_TURRET_ANGLE_DEG;
+    }
+
+    private double getRawTurretEncoderAngle() {
+        // Rev Through Bore Encoder gives precisely 8192 ticks per full revolution of
+        // whatever shaft IT is mounted on (servo or turret directly).
+        // Dividing by TURRET_GEAR_RATIO converts from servo-shaft revolutions
+        // to actual turret-output revolutions.
+        double ticks = -turretEncoder.getCurrentPosition();
+        return (ticks / (8192.0 * TURRET_GEAR_RATIO)) * 360.0;
+    }
+
+    public double getMeasuredTurretAngle() {
+        double rawAngle = getRawTurretEncoderAngle();
+        double adjustedAngle = rawAngle - TURRET_ENCODER_OFFSET_DEG;
+
+        // Wrap to -180 to 180 to match standard FTC conventions
+        while (adjustedAngle > 180)
+            adjustedAngle -= 360;
+        while (adjustedAngle < -180)
+            adjustedAngle += 360;
+
+        return adjustedAngle;
     }
 
     private void updateTurretPID() {
-        double currentPos = turretMotor.getCurrentPosition();
-        double error = turretTargetPos - currentPos;
+        double currentAngle = getMeasuredTurretAngle();
+        double error = turretTargetAngleDeg - currentAngle;
+
+        // Adjust for shortest path if needed
+        while (error > 180)
+            error -= 360;
+        while (error < -180)
+            error += 360;
+
         double dt = turretTimer.seconds();
         turretTimer.reset();
 
         if (dt > 0.1)
-            dt = 0.01; // Prevent massive spikes on first loop or lag
+            dt = 0.01; // Prevent massive spikes
 
         turretIntegralSum += error * dt;
 
-        // Anti-windup: cap the integral sum
-        if (Math.abs(turretIntegralSum) > 0.2 / turretI) {
-            turretIntegralSum = Math.signum(turretIntegralSum) * (0.2 / turretI);
+        // Anti-windup
+        if (Math.abs(turretIntegralSum) > 0.2 / (turretI + 0.000001)) {
+            turretIntegralSum = Math.signum(turretIntegralSum) * (0.2 / (turretI + 0.000001));
         }
 
         double rawDerivative = (error - lastTurretError) / dt;
         lastTurretError = error;
 
-        // Apply Low-Pass Filter to Derivative to reduce noise from flywheel vibrations
+        // LPF on derivative
         double filteredDerivative = (turretD_LPF * lastFilteredDerivative) + ((1 - turretD_LPF) * rawDerivative);
         lastFilteredDerivative = filteredDerivative;
 
         double power = (error * turretP) + (turretIntegralSum * turretI) + (filteredDerivative * turretD);
 
-        // Add Feedforward based on target direction (simple static friction
-        // compensation)
-        if (Math.abs(error) > 2) {
+        // Feedforward for static friction
+        if (Math.abs(error) > 1.0) { // 1 degree deadband for static F
             power += Math.signum(error) * turretF;
         }
 
         // Clamp power and apply
         power = Math.max(-1.0, Math.min(1.0, power));
 
-        // NOTE: Hard-zeroing deadband removed to maintain gear tension on Lazy Susan
-        /*
-         * if (Math.abs(error) < 2 && Math.abs(derivative) < 1) {
-         * power = 0;
-         * turretIntegralSum = 0;
-         * }
-         */
-
-        turretMotor.setPower(power);
+        turretServo1.setPower(power);
+        turretServo2.setPower(power);
     }
 
     public void resetTurret() {
-        turretTargetPos = 0;
+        turretTargetAngleDeg = 0;
     }
 
-    public int getTurretPosition() {
-        return turretMotor.getCurrentPosition();
+    public void resetTurretEncoder() {
+        // Stop the motor briefly to reset the count
+        turretEncoder.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        turretEncoder.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+
+        // Reset our software targets so they don't jump
+        turretTargetAngleDeg = 0;
+        turretIntegralSum = 0;
+        lastTurretError = 0;
     }
 
-    public int getTurretTargetPos() {
-        return turretTargetPos;
+    public void setTurretTargetAngle(double angleDeg) {
+        this.turretTargetAngleDeg = angleDeg;
+        // Clamp Angle
+        if (turretTargetAngleDeg > MAX_TURRET_ANGLE_DEG)
+            turretTargetAngleDeg = MAX_TURRET_ANGLE_DEG;
+        if (turretTargetAngleDeg < -MAX_TURRET_ANGLE_DEG)
+            turretTargetAngleDeg = -MAX_TURRET_ANGLE_DEG;
+    }
+
+    public double getTurretAngle() {
+        return getMeasuredTurretAngle(); // Now returns the actual real-world angle!
     }
 
     public double getVelocity() {
@@ -377,26 +432,37 @@ public class OuttakeSubsystem {
     }
 
     private void updatePIDF() {
-        // Only consider an update if enough time has passed to protect loop performance
+        // 1. Performance Guard
         if (pidfUpdateTimer.milliseconds() < PIDF_UPDATE_INTERVAL_MS)
             return;
 
-        double appliedF = flywheelF;
-        if (targetVelocity > 1) {
-            appliedF += (flywheelStaticF / targetVelocity);
+        double appliedF = 0;
+
+        // 2. The "Direct Power" Math
+        if (Math.abs(targetVelocity) > 1) {
+            // flywheelF (kV): Power per tick/sec
+            // flywheelStaticF (kS): Flat power to overcome gearbox friction
+
+            // We divide staticF by targetVelocity because the REV Hub
+            // internally MULTIPLIES the whole F by targetVelocity.
+            // This ensures flywheelStaticF acts as a constant "Base Power" boost.
+            appliedF = flywheelF + (flywheelStaticF / Math.abs(targetVelocity));
         }
 
-        // Only update if it's a SIGNIFICANT change (>100 ticks) OR coefficients changed
-        if (Math.abs(targetVelocity - lastAppliedTarget) > 100 ||
+        // 3. Significant Change Detection
+        // Lowered threshold to 20 for more precise tuning
+        if (Math.abs(targetVelocity - lastAppliedTarget) > 20 ||
                 flywheelP != lastAppliedP ||
                 flywheelF != lastAppliedF_base ||
                 flywheelStaticF != lastAppliedStaticF) {
 
             com.qualcomm.robotcore.hardware.PIDFCoefficients coefficients = new com.qualcomm.robotcore.hardware.PIDFCoefficients(
                     flywheelP, 0, 0, appliedF);
+
             shootMotor.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
             shootMotor2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
 
+            // Update tracking variables
             lastAppliedTarget = targetVelocity;
             lastAppliedP = flywheelP;
             lastAppliedF_base = flywheelF;
@@ -413,12 +479,11 @@ public class OuttakeSubsystem {
         } else {
             telemetry.addLine("<i>Stopped</i>");
         }
-        // telemetry.addData("Outtake Pos", getOuttakeMotorPosition());
-        telemetry.addData("Target Power", "%.2f", getTargetBasePower());
-        telemetry.addData("Target Velocity", "%.0f", getTargetBasePower() * MAX_VELOCITY);
+        telemetry.addData("Target Velocity", targetVelocity);
+        telemetry.addData("Outtake Angle Target", "%.2f", outtakeAngle.getPosition());
         telemetry.addData("ShootMotor Velocity", getVelocity());
-        telemetry.addData("Turret Pos", getTurretPosition());
-        telemetry.addData("Turret Target", getTurretTargetPos());
+        telemetry.addData("Turret Target Angle", "%.1f deg", turretTargetAngleDeg);
+        telemetry.addData("Turret Raw Angle", "%.1f deg", getRawTurretEncoderAngle());
         telemetry.addData("Turret Lock Mode", isHuskyLock ? "HUSKY (PRECISE)" : "POSE (FALLBACK)");
     }
 }

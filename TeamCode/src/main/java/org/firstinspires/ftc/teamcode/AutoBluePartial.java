@@ -184,7 +184,7 @@ public class AutoBluePartial extends OpMode {
             case 5: // ARRIVED Score 1
                 if (!isBusy) {
                     intakeSubsytem.setPower(0);
-                    storageSubsystem.autoThrow = true;
+                    // storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }
                 // Secure intake during travel
@@ -232,7 +232,7 @@ public class AutoBluePartial extends OpMode {
             case 9: // ARRIVED Score 2
                 if (!isBusy) {
                     intakeSubsytem.setPower(0);
-                    storageSubsystem.autoThrow = true;
+                    // storageSubsystem.autoThrow = true;
                     setPathState(10);
                 }
                 if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
@@ -272,7 +272,7 @@ public class AutoBluePartial extends OpMode {
                 if (!isBusy) {
                     if (pathTimer.getElapsedTimeSeconds() > 0.7) {
                         follower.followPath(path10, true);
-                        storageSubsystem.autoThrow = true;
+                        // storageSubsystem.autoThrow = true;
                         setPathState(13);
                     }
                 } else {

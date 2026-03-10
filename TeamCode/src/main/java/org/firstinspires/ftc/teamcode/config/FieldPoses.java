@@ -24,9 +24,9 @@ public class FieldPoses {
     public static final Pose PICKUP_3 = new Pose(46.5110334, 33.558042, Math.toRadians(-177));
     public static final Pose GET_PICK_3 = new Pose(10.657059, 33.558042, Math.toRadians(-177));
 
-    public static final Pose cycle = new Pose(133.34571428571425, 57.704, Math.toRadians(30));
-    public static final Pose cycle2 = new Pose(133.34571428571425, 54.07714285714288, Math.toRadians(30));
-    public static final Pose cyclePoint = new Pose(99.32542857142855, 66.20285714285717);
+    public static final Pose cycle = new Pose(10.654285714285749, 57.704, Math.toRadians(30));
+    public static final Pose cycle2 = new Pose(10.654285714285749, 54.07714285714288, Math.toRadians(30));
+    public static final Pose cyclePoint = new Pose(44.674571428571454, 66.20285714285717);
 
     // Parking
     public static final Pose PARK = new Pose(24.06171428571428, 89.74514285714287, Math.toRadians(141));

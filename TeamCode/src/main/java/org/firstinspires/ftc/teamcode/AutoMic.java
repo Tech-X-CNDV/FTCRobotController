@@ -71,7 +71,7 @@ public class AutoMic extends OpMode {
             case 0:
                 outtakeSubsystem.SetShootMotorPower(0.8);
                 outtakeSubsystem.SetAngle(1);
-                // storageSubsystem.autoThrow = true;
+                // //storageSubsystem.autoThrow = true;
                 if (pathTimer.getElapsedTimeSeconds() > 4)
                     setPathState(1);
                 break;
@@ -109,7 +109,7 @@ public class AutoMic extends OpMode {
                 break;
             case 4:
                 if (!follower.isBusy()) {
-                    storageSubsystem.autoThrow = true;
+                    // storageSubsystem.autoThrow = true;
                     setPathState(5);
                 } else {
                     // storageSubsystem.MoveRelative(475, 1);
