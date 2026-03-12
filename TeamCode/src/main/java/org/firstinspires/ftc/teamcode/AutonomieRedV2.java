@@ -62,7 +62,7 @@ public class AutonomieRedV2 extends OpMode {
     private final Pose cyclePoint = FieldPoses.cyclePoint.mirror();
 
     // Parking
-    private final Pose parkPose = FieldPoses.PARK;
+    private final Pose parkPose = FieldPoses.PARK.mirror();
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path8_2, path9, path10, path11;
 
     public void buildPaths() {
@@ -290,7 +290,7 @@ public class AutonomieRedV2 extends OpMode {
         PoseStorage.allianceOffset = 0;
         PoseStorage.isRed = true;
         PoseStorage.autoPoseRed = startPose;
-        targetPose = LOCK_POSE.mirror();
+        targetPose = LOCK_POSE;
     }
 
     @Override

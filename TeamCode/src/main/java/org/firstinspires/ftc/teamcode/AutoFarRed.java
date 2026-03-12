@@ -8,7 +8,6 @@ import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
@@ -17,8 +16,8 @@ import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.config.FieldPoses;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "06: AutoPreloadParkRed", group = "Active")
-public class AutoPreloadParkRed extends OpMode {
+@Autonomous(name = "08: AutoFarRed", group = "Active")
+public class AutoFarRed extends OpMode {
     private Follower follower;
     private Timer pathTimer;
     private int pathState;
@@ -32,12 +31,27 @@ public class AutoPreloadParkRed extends OpMode {
     // Constant Poses
     private final Pose startPose = new Pose(59.52914285714286, 11.45599999999999, Math.toRadians(180)).mirror();
     private final Pose LOCK_POSE = FieldPoses.LOCK_POSE.mirror();
+
+    private final Pose pickup3 = FieldPoses.PICKUP_3.mirror();
+    private final Pose getPickUp3 = FieldPoses.GET_PICK_3.mirror();
+
     private final Pose parkPose = new Pose(35.829714285714275, 13.630857142857149, Math.toRadians(180)).mirror();
 
-    private PathChain parkPath;
+    private PathChain startToPickup3Path, pickup3ToGetPickup3Path, getPickup3ToStartPath, parkPath;
 
     public void buildPaths() {
-        // Path from Start to the Final Parking position
+        startToPickup3Path = follower.pathBuilder()
+                .addPath(new BezierLine(startPose, pickup3))
+                .setLinearHeadingInterpolation(startPose.getHeading(), pickup3.getHeading())
+                .build();
+        pickup3ToGetPickup3Path = follower.pathBuilder()
+                .addPath(new BezierLine(pickup3, getPickUp3))
+                .setLinearHeadingInterpolation(pickup3.getHeading(), getPickUp3.getHeading())
+                .build();
+        getPickup3ToStartPath = follower.pathBuilder()
+                .addPath(new BezierLine(getPickUp3, startPose))
+                .setLinearHeadingInterpolation(getPickUp3.getHeading(), startPose.getHeading())
+                .build();
         parkPath = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, parkPose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), parkPose.getHeading())
@@ -52,25 +66,48 @@ public class AutoPreloadParkRed extends OpMode {
 
         switch (pathState) {
             case 0: // Shoot from the Start position
-                // Give turret and flywheel a moment to align and spin up
-                if (pathTimer.getElapsedTimeSeconds() > 3) {
+                if (pathTimer.getElapsedTimeSeconds() > 2.5) {
                     if (!shootingStarted && storageSubsystem.isIdle()) {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
                     }
-                    // Once shot is fired, transition to wait state
                     if (storageSubsystem.isDoneShooting()) {
+                        follower.followPath(startToPickup3Path, true);
                         setPathState(1);
                     }
                 }
                 break;
-            case 1: // Wait 1 second before parking
-                if (pathTimer.getElapsedTimeSeconds() > 1.0) {
-                    follower.followPath(parkPath);
+            case 1: // Moving to pickup3
+                if (!isBusy) {
+                    follower.followPath(pickup3ToGetPickup3Path, true);
+                    intakeSubsystem.setPower(1.0);
                     setPathState(2);
                 }
                 break;
-            case 2: // Moving to Park position
+            case 2: // Moving to getPickUp3
+                if (!isBusy) {
+                    if (pathTimer.getElapsedTimeSeconds() > 0.8) { // Intake delay
+                        follower.followPath(getPickup3ToStartPath, true);
+                        intakeSubsystem.setPower(0);
+                        setPathState(3);
+                    }
+                }
+                break;
+            case 3: // Returning to Start position
+                if (!isBusy) {
+                    if (pathTimer.getElapsedTimeSeconds() > 1.5) {
+                        if (!shootingStarted && storageSubsystem.isIdle()) {
+                            storageSubsystem.StartShooting();
+                            shootingStarted = true;
+                        }
+                        if (storageSubsystem.isDoneShooting()) {
+                            follower.followPath(parkPath, true);
+                            setPathState(4);
+                        }
+                    }
+                }
+                break;
+            case 4: // Moving to Park position
                 if (!isBusy) {
                     setPathState(-1); // Finished
                 }
@@ -97,6 +134,8 @@ public class AutoPreloadParkRed extends OpMode {
 
         pathTimer = new Timer();
         follower = Constants.createFollower(hardwareMap);
+        pickup3.setHeading(0);
+        getPickUp3.setHeading(0);
         buildPaths();
         follower.setStartingPose(startPose);
 

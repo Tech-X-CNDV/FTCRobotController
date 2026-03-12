@@ -174,7 +174,7 @@ public class AutoMicBlue extends OpMode {
         pathTimer.resetTimer();
         matchTimer.reset();
         outtakeSubsystem.SetAutoAim(true);
-        PoseStorage.isRed = false; // AutoMic is currently Red
+        PoseStorage.isRed = false; // AutoMic is currently Blue
         setPathState(0);
     }
 

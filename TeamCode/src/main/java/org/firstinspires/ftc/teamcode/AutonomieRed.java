@@ -312,7 +312,7 @@ public class AutonomieRed extends OpMode {
         PoseStorage.allianceOffset = 0;
         PoseStorage.isRed = true;
         PoseStorage.autoPoseRed = startPose;
-        targetPose = LOCK_POSE.mirror();
+        targetPose = LOCK_POSE;
     }
 
     @Override
