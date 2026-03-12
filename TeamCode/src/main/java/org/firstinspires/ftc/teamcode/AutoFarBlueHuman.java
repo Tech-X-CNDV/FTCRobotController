@@ -104,6 +104,9 @@ public class AutoFarBlueHuman extends OpMode {
                 }
                 break;
             case 3: // Returning to Start position for pickup3 shoot
+                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                    intakeSubsystem.setPower(-1);
+                }
                 if (!isBusy) {
                     if (pathTimer.getElapsedTimeSeconds() > 1.5) {
                         if (!shootingStarted && storageSubsystem.isIdle()) {
@@ -128,6 +131,9 @@ public class AutoFarBlueHuman extends OpMode {
                 }
                 break;
             case 5: // Returning to Start position for human shoot
+                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                    intakeSubsystem.setPower(-1);
+                }
                 if (!isBusy) {
                     if (pathTimer.getElapsedTimeSeconds() > 1.5) {
                         if (!shootingStarted && storageSubsystem.isIdle()) {

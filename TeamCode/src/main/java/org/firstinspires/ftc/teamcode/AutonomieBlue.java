@@ -175,6 +175,9 @@ public class AutonomieBlue extends OpMode {
                 // storageSubsystem.MoveRelative(475, 1);
                 break;
             case 5: // ARRIVED Score 1
+                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                    intakeSubsytem.setPower(-1);
+                }
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
                     setPathState(6);
@@ -215,6 +218,9 @@ public class AutonomieBlue extends OpMode {
                 // storageSubsystem.MoveRelative(475, 1);
                 break;
             case 9: // ARRIVED Score 2
+                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                    intakeSubsytem.setPower(-1);
+                }
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
                     setPathState(10);
@@ -256,6 +262,9 @@ public class AutonomieBlue extends OpMode {
                 }
                 break;
             case 13: // ARRIVED Score 3
+                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                    intakeSubsytem.setPower(-1);
+                }
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
                     setPathState(14);

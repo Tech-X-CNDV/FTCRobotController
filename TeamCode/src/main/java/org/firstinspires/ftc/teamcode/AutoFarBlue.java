@@ -94,6 +94,9 @@ public class AutoFarBlue extends OpMode {
                 }
                 break;
             case 3: // Returning to Start position
+                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                    intakeSubsystem.setPower(-1);
+                }
                 if (!isBusy) {
                     if (pathTimer.getElapsedTimeSeconds() > 1.5) {
                         if (!shootingStarted && storageSubsystem.isIdle()) {
