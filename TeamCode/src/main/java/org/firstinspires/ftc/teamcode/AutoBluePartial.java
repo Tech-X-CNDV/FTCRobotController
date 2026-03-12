@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.config.FieldPoses;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "AutoBluePartial")
+@Autonomous(name = "z_AutoBluePartial", group = "Deprecated")
 public class AutoBluePartial extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer;

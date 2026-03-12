@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.config.FieldPoses;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "AutoRed")
+@Autonomous(name = "04: AutoRed", group = "Active")
 public class AutonomieRed extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer;
@@ -26,7 +26,7 @@ public class AutonomieRed extends OpMode {
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
     IntakeSubsytem intakeSubsytem;
-    private boolean dynamicAimStarted = false;
+    private boolean shootingStarted = false; // guards StartShooting() so it is only called once per state
     private final ElapsedTime timer = new ElapsedTime();
     private final ElapsedTime matchTimer = new ElapsedTime();
     private double lastTime = 0;
@@ -35,7 +35,7 @@ public class AutonomieRed extends OpMode {
     // Pose Constants
     private final Pose startPose = FieldPoses.START.mirror();
     private final Pose scorePose = FieldPoses.SCORE.mirror();
-    private final Pose LOCK_POSE = FieldPoses.LOCK_POSE; // LOCK_POSE is usually mirrored manually or in update loop
+    private final Pose LOCK_POSE = FieldPoses.LOCK_POSE.mirror();
     private Pose targetPose;
 
     // Pickup 1
@@ -47,7 +47,8 @@ public class AutonomieRed extends OpMode {
     // Pickup 2
     private final Pose pickup2 = FieldPoses.PICKUP_2.mirror();
     private final Pose getPick2 = FieldPoses.GET_PICK_2.mirror();
-    // private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK.mirror();
+    private final Pose swing = new Pose(65, 65).mirror();
+    // private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK;
 
     // Pickup 3
     private final Pose pickup3 = FieldPoses.PICKUP_3.mirror();
@@ -100,7 +101,7 @@ public class AutonomieRed extends OpMode {
 
         // Path 7: Swing out to avoid the obstacle on the left
         path7 = follower.pathBuilder()
-                .addPath(new BezierCurve(getPick2, new Pose(79, 65), scorePose))
+                .addPath(new BezierCurve(getPick2, swing, scorePose))
                 .setLinearHeadingInterpolation(getPick2.getHeading(), scorePose.getHeading())
                 .build();
 
@@ -133,28 +134,24 @@ public class AutonomieRed extends OpMode {
         switch (pathState) {
             case 0: // Move to Preload Score
                 follower.followPath(path1, true);
-                follower.setMaxPower(0.9);
+                follower.setMaxPower(0.85);
                 // storageSubsystem.autoThrow = true;
                 setPathState(1);
                 break;
-
             case 1: // SHOOTING: Preload
                 if (!isBusy) {
-                    dynamicAimStarted = true;
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * storageSubsystem.setServoPos(1);
-                     * follower.setMaxPower(1);
-                     * setPathState(2); // Move to Alignment
-                     * }
-                     */
-                    follower.setMaxPower(1);
-                    setPathState(2);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    // Wait until the full shot sequence has completed before moving on
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        follower.setMaxPower(1);
+                        setPathState(2);
+                    }
                 }
                 break;
-
             // ================= PICKUP 1 SEQUENCE =================
             case 2: // ALIGN to Pickup 1 (Path 2)
                 if (!isBusy) {
@@ -162,7 +159,6 @@ public class AutonomieRed extends OpMode {
                     setPathState(3);
                 }
                 break;
-
             case 3: // STAB/INTAKE 1 (Path 3)
                 if (!isBusy) {
                     follower.setMaxPower(0.9);
@@ -171,7 +167,6 @@ public class AutonomieRed extends OpMode {
                     setPathState(4);
                 }
                 break;
-
             case 4: // RETURN to Score 1 (Path 4)
                 if (!isBusy) {
                     follower.setMaxPower(1.0);
@@ -180,7 +175,6 @@ public class AutonomieRed extends OpMode {
                 }
                 // storageSubsystem.MoveRelative(475, 1);
                 break;
-
             case 5: // ARRIVED Score 1
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
@@ -190,25 +184,20 @@ public class AutonomieRed extends OpMode {
                 // if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
                 // storageSubsystem.MoveRelative(475, 1);
                 break;
-
             case 6: // SHOOTING 1
                 if (!isBusy) {
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * intakeSubsytem.setPower(0);
-                     * storageSubsystem.setServoPos(1);
-                     * follower.followPath(path5); // Align to Pickup 2
-                     * setPathState(7);
-                     * }
-                     */
                     intakeSubsytem.setPower(0);
-                    follower.followPath(path5);
-                    setPathState(7);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        follower.followPath(path5); // Align to Pickup 2
+                        setPathState(7);
+                    }
                 }
                 break;
-
             // ================= PICKUP 2 SEQUENCE =================
             case 7: // STAB/INTAKE 2 (Path 6)
                 if (!isBusy) {
@@ -218,7 +207,6 @@ public class AutonomieRed extends OpMode {
                     setPathState(8);
                 }
                 break;
-
             case 8: // RETURN Score 2 (Path 7 - Bezier)
                 if (!isBusy) {
                     follower.setMaxPower(1.0);
@@ -227,7 +215,6 @@ public class AutonomieRed extends OpMode {
                 }
                 // storageSubsystem.MoveRelative(475, 1);
                 break;
-
             case 9: // ARRIVED Score 2
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
@@ -236,25 +223,20 @@ public class AutonomieRed extends OpMode {
                 // if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
                 // storageSubsystem.MoveRelative(475, 1);
                 break;
-
             case 10: // SHOOTING 2
                 if (!isBusy) {
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * intakeSubsytem.setPower(0);
-                     * storageSubsystem.setServoPos(1);
-                     * follower.followPath(path9); // Align to Pickup 3
-                     * setPathState(11);
-                     * }
-                     */
                     intakeSubsytem.setPower(0);
-                    follower.followPath(path9);
-                    setPathState(11);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        follower.followPath(path9); // Align to Pickup 3
+                        setPathState(11);
+                    }
                 }
                 break;
-
             // ================= PICKUP 3 SEQUENCE =================
             case 11: // STAB/INTAKE 3 (Path 10)
                 if (!isBusy) {
@@ -264,7 +246,6 @@ public class AutonomieRed extends OpMode {
                     setPathState(12);
                 }
                 break;
-
             case 12: // RETURN Score 3 (Path 11)
                 if (!isBusy) {
                     follower.setMaxPower(1.0);
@@ -275,7 +256,6 @@ public class AutonomieRed extends OpMode {
                     // storageSubsystem.MoveRelative(475, 1);
                 }
                 break;
-
             case 13: // ARRIVED Score 3
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
@@ -284,27 +264,21 @@ public class AutonomieRed extends OpMode {
                 // if (pathTimer.getElapsedTimeSeconds() < 0.5 && isBusy)
                 // storageSubsystem.MoveRelative(475, 1);
                 break;
-
             case 14: // SHOOTING 3
                 if (!isBusy) {
-                    /*
-                     * if (storageSubsystem.autoThrow) {
-                     * storageSubsystem.ThrowAll(0.32);
-                     * } else {
-                     * intakeSubsytem.setPower(0);
-                     * storageSubsystem.setServoPos(1);
-                     * outtakeSubsystem.SetShootMotorPower(0);
-                     * follower.followPath(path8, true); // Park
-                     * setPathState(15);
-                     * }
-                     */
                     intakeSubsytem.setPower(0);
-                    outtakeSubsystem.SetShootMotorPower(0);
-                    follower.followPath(path8, true);
-                    setPathState(15);
+                    if (!shootingStarted) {
+                        storageSubsystem.StartShooting();
+                        shootingStarted = true;
+                    }
+                    if (storageSubsystem.isIdle()) {
+                        shootingStarted = false;
+                        outtakeSubsystem.SetShootMotorPower(0);
+                        follower.followPath(path8, true); // Park
+                        setPathState(15);
+                    }
                 }
                 break;
-
             case 15: // PARK COMPLETION
                 if (!isBusy) {
                     setPathState(-1);
@@ -324,8 +298,8 @@ public class AutonomieRed extends OpMode {
         outtakeSubsystem.InitOuttake();
 
         storageSubsystem = new StorageSubsystem(hardwareMap);
+        storageSubsystem.InitStorage();
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
-        // storageSubsystem.InitStorage();
 
         intakeSubsytem = new IntakeSubsytem(hardwareMap);
         intakeSubsytem.InitIntake();
@@ -335,6 +309,9 @@ public class AutonomieRed extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         buildPaths();
         follower.setStartingPose(startPose);
+        PoseStorage.allianceOffset = 0;
+        PoseStorage.isRed = true;
+        PoseStorage.autoPoseRed = startPose;
         targetPose = LOCK_POSE.mirror();
     }
 
@@ -342,9 +319,6 @@ public class AutonomieRed extends OpMode {
     public void start() {
         pathTimer.resetTimer();
         matchTimer.reset();
-        outtakeSubsystem.AutoAngle();
-        outtakeSubsystem.SetShootMotorPower(0.72);
-        dynamicAimStarted = false;
         PoseStorage.isRed = true;
         PoseStorage.allianceOffset = 0;
         setPathState(0);
@@ -360,20 +334,14 @@ public class AutonomieRed extends OpMode {
         Pose currentPose = follower.getPose();
 
         follower.update();
-        // storageSubsystem.update();
+        storageSubsystem.update();
         outtakeSubsystem.update();
 
-        if (dynamicAimStarted) {
-            // Centralized Dynamic Aim (Power & Angle)
-            double deltaX = targetPose.getX() - currentPose.getX();
-            double deltaY = targetPose.getY() - currentPose.getY();
-            outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
-            outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
-        } else {
-            // Static spin-up (PIDF-consistent)
-            outtakeSubsystem.SetShootMotorPower(0.72);
-            outtakeSubsystem.AutoAngle();
-        }
+        // Centralized Dynamic Aim (Power & Angle) — always active
+        double deltaX = targetPose.getX() - currentPose.getX();
+        double deltaY = targetPose.getY() - currentPose.getY();
+        outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
+        outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
 
         // --- 30s FAILSAFE GUARDIAN ---
         if (matchTimer.seconds() > 29.8) {
@@ -406,7 +374,7 @@ public class AutonomieRed extends OpMode {
 
         // --- SUBSYSTEMS TELEMETRY ---
         intakeSubsytem.displayTelemetry(telemetry);
-        // storageSubsystem.displayTelemetry(telemetry);
+        storageSubsystem.displayTelemetry(telemetry);
         outtakeSubsystem.displayTelemetry(telemetry);
 
         telemetry.update();
@@ -414,6 +382,6 @@ public class AutonomieRed extends OpMode {
 
     @Override
     public void stop() {
-        PoseStorage.autoPoseRed = follower.getPose();
+        // PoseStorage.autoPoseBlue = follower.getPose();
     }
 }

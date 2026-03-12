@@ -327,10 +327,10 @@ public class OPMode extends OpMode {
         }
 
         if (gamepad2.rightTriggerWasPressed()) {
-            if (storageSubsystem.GetServoPosition() > 0) {
-                storageSubsystem.OpenGate();
-            } else {
+            if (storageSubsystem.isGateOpen()) {
                 storageSubsystem.CloseGate();
+            } else {
+                storageSubsystem.OpenGate();
             }
         }
 

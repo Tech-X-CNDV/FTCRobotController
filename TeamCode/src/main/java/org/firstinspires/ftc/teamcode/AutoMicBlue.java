@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@Autonomous(name = "AutoMicBlue")
+@Autonomous(name = "z_AutoMicBlue", group = "Deprecated")
 public class AutoMicBlue extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer;

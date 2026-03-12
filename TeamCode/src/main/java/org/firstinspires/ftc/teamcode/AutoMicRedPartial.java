@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.config.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@Autonomous(name = "AutoMicRedPartial")
+@Autonomous(name = "z_AutoMicRedPartial", group = "Deprecated")
 public class AutoMicRedPartial extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer;

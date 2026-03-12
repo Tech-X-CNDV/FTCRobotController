@@ -15,6 +15,13 @@ public class FlywheelTuningOpMode extends LinearOpMode {
     private boolean lastB = false;
     private double lastHighVelocity = 3200;
 
+    // Timing variables
+    private double lastTarget = -1;
+    private boolean lastEnabled = false;
+    private com.qualcomm.robotcore.util.ElapsedTime spinUpTimer = new com.qualcomm.robotcore.util.ElapsedTime();
+    private double spinUpTimeSeconds = -1;
+    private boolean targetReached = true;
+
     @Override
     public void runOpMode() throws InterruptedException {
         outtake = new OuttakeSubsystem(hardwareMap);
@@ -28,7 +35,7 @@ public class FlywheelTuningOpMode extends LinearOpMode {
         while (opModeIsActive()) {
             // High Speed Toggle (3200 / 2000)
             if (gamepad1.y && !lastY) {
-                outtake.targetVelocity = (outtake.targetVelocity == 2200) ? 1500 : 2200;
+                outtake.targetVelocity = (outtake.targetVelocity == 2200) ? 1700 : 2200;
             }
             lastY = gamepad1.y;
 
@@ -66,14 +73,31 @@ public class FlywheelTuningOpMode extends LinearOpMode {
             else if (gamepad1.dpadLeftWasPressed())
                 outtake.flywheelF -= currentStep;
 
-            // Static F (kS) adjustment (Bumpers)
-            if (gamepad1.rightBumperWasPressed())
-                outtake.flywheelStaticF += currentStep;
-            else if (gamepad1.leftBumperWasPressed())
-                outtake.flywheelStaticF -= currentStep;
-
             // Apply coefficients every loop
-            outtake.setFlywheelPIDF(outtake.flywheelP, outtake.flywheelF, outtake.flywheelStaticF);
+            outtake.setFlywheelPIDF(outtake.flywheelP, outtake.flywheelF);
+
+            // Spin-up timing logic
+            boolean currentlyEnabled = outtake.getTargetVelocity() > 0; // Outtake sets enabled based on velocity in
+                                                                        // some methods
+            // Note: ToggleShootMotor changes internal state, but getTargetVelocity() might
+            // be > 0.
+            // Let's use a more direct way if possible, but let's stick to target and ready
+            // checks.
+
+            if (outtake.targetVelocity != lastTarget || currentlyEnabled != lastEnabled) {
+                if (currentlyEnabled && outtake.targetVelocity > 0) {
+                    spinUpTimer.reset();
+                    targetReached = false;
+                    spinUpTimeSeconds = -1;
+                }
+                lastTarget = outtake.targetVelocity;
+                lastEnabled = currentlyEnabled;
+            }
+
+            if (!targetReached && Math.abs(outtake.getVelocity() - outtake.targetVelocity) <= 100) {
+                spinUpTimeSeconds = spinUpTimer.seconds();
+                targetReached = true;
+            }
 
             // Update motor power/velocity
             outtake.update();
@@ -82,10 +106,12 @@ public class FlywheelTuningOpMode extends LinearOpMode {
             telemetry.addData("Target Velocity", outtake.targetVelocity);
             telemetry.addData("Current Velocity", outtake.getVelocity());
             telemetry.addData("Error", outtake.targetVelocity - outtake.getVelocity());
+            telemetry.addData("Motor Power", outtake.getPower());
+            telemetry.addData("Spin-up Time",
+                    spinUpTimeSeconds >= 0 ? String.format("%.2f s", spinUpTimeSeconds) : "Cranking...");
             telemetry.addLine("--- PIDF Coefficients ---");
             telemetry.addData("P (Dpad Up/Down)", "%.4f", outtake.flywheelP);
             telemetry.addData("Velocity F (Dpad R/L)", "%.6f", outtake.flywheelF);
-            telemetry.addData("Static F (Bumpers)", "%.4f", outtake.flywheelStaticF);
             telemetry.addData("Step Size", currentStep);
             telemetry.update();
         }
