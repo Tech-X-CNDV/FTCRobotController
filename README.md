@@ -36,7 +36,7 @@ If you are a driver, programmer, or coach, please refer to these guides for setu
 | **Main TeleOp** | [`OPMode.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/OPMode.java) |
 | **Main Auto (Blue)** | [`AutonomieBlue.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieBlue.java) |
 | **Main Auto (Red)** | [`AutonomieRed.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieRed.java) |
-| **Intake Subsystem** | [`IntakeSubsytem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/IntakeSubsytem.java) |
+| **Intake Subsystem** | [`IntakeSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/IntakeSubsystem.java) |
 | **Storage Subsystem** | [`StorageSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/StorageSubsystem.java) |
 | **Outtake Subsystem** | [`OuttakeSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/OuttakeSubsystem.java) |
 | **Field Coordinates** | [`FieldPoses.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/FieldPoses.java) |

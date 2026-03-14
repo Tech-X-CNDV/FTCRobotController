@@ -12,7 +12,7 @@ public class StorageTuningOpMode extends LinearOpMode {
     @Override
     public void runOpMode() {
         // Initialize the Storage Subsystem
-        storageSubsystem = new StorageSubsystem(hardwareMap);
+        storageSubsystem = new StorageSubsystem(hardwareMap, null);
         storageSubsystem.InitStorage();
 
         telemetry.addData("Status", "Initialized. Waiting for start...");

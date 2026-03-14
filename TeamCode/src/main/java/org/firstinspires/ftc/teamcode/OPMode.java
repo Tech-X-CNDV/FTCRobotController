@@ -14,7 +14,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
-import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
+import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.FieldPoses;
@@ -32,7 +32,7 @@ public class OPMode extends OpMode {
     private boolean slowMode = false;
     private double slowModeMultiplier = 0.5;
     StorageSubsystem storageSubsystem;
-    IntakeSubsytem intakeSubsytem;
+    IntakeSubsystem intakeSubsystem;
     OuttakeSubsystem outtakeSubsystem;
     ElapsedTime runTime = new ElapsedTime();
     String[] patterns = { " ", "GPP ", "PGP ", "PPG ", " " };
@@ -79,20 +79,30 @@ public class OPMode extends OpMode {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         }
 
-        storageSubsystem = new StorageSubsystem(hardwareMap);
-        storageSubsystem.InitStorage();
-
-        intakeSubsytem = new IntakeSubsytem(hardwareMap);
-        intakeSubsytem.InitIntake();
+        intakeSubsystem = new IntakeSubsystem(hardwareMap);
+        intakeSubsystem.InitIntake();
 
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
         // outtakeSubsystem.TARGET_TAG_ID = PoseStorage.isRed ? 2 : 1; // bypass for now
 
+        storageSubsystem = new StorageSubsystem(hardwareMap, outtakeSubsystem);
+        storageSubsystem.InitStorage();
+
         telemetry.addData("Status", "Initialized");
 
         // TeleOp telemetry
         telemetry.update();
+    }
+
+    @Override
+    public void init_loop() {
+        if (allHubs == null) {
+            allHubs = hardwareMap.getAll(LynxModule.class);
+        }
+        for (LynxModule hub : allHubs) {
+            hub.clearBulkCache();
+        }
     }
 
     @Override
@@ -106,7 +116,9 @@ public class OPMode extends OpMode {
         targetPose = PoseStorage.isRed ? LOCK_POSE.mirror() : LOCK_POSE;
         outtakeSubsystem.SetAngle(0);
         outtakeSubsystem.resetTurret(); // Center turret on START instead of INIT
-        storageSubsystem.ResetToIntake();
+        outtakeSubsystem.StartShootMotor();
+        outtakeSubsystem.setTargetVelocity(OuttakeSubsystem.IDLE_SHOOT_VELOCITY);
+        storageSubsystem.ResetToIntake(true);
     }
 
     private ElapsedTime timer = new ElapsedTime();
@@ -201,7 +213,7 @@ public class OPMode extends OpMode {
         if (gamepad1.startWasPressed()) {
             Pose currentPose = follower.getPose();
             follower.setPose(new Pose(currentPose.getX(), currentPose.getY(), PoseStorage.allianceOffset));
-            outtakeSubsystem.resetTurretEncoder();
+            // Turret encoder reset removed so the turret doesn't lose its physical zero
             gamepad1.rumbleBlips(2);
         }
 
@@ -266,13 +278,14 @@ public class OPMode extends OpMode {
             } else {
                 // STANDARD FIELD-CENTRIC (No Locks Active)
                 follower.setTeleOpDrive(drive, strafe, turn, false, PoseStorage.allianceOffset);
+                outtakeSubsystem.setTargetVelocity(OuttakeSubsystem.IDLE_SHOOT_VELOCITY);
             }
         }
 
-        intakeSubsytem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
+        intakeSubsystem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
 
         if (gamepad1.left_trigger_pressed) {
-            storageSubsystem.ResetToIntake();
+            storageSubsystem.ResetToIntake(true);
         }
 
         if (gamepad1.dpadUpWasPressed()) {
@@ -300,7 +313,7 @@ public class OPMode extends OpMode {
         }
 
         if (gamepad2.aWasPressed()) {
-            storageSubsystem.ResetToIntake();
+            storageSubsystem.ResetToIntake(true);
         }
 
         if (gamepad2.bWasPressed()) {
@@ -342,8 +355,8 @@ public class OPMode extends OpMode {
             else
                 gamepad2.rumble(300);
         }
-        if (outtakeSubsystem.isReadyToFire())
-            gamepad2.rumble(100);
+        // if (outtakeSubsystem.isReadyToFire())
+        // gamepad2.rumble(100);
 
         // Outtake Servo Angle
         if (gamepad2.leftBumperWasReleased()) {
@@ -372,7 +385,7 @@ public class OPMode extends OpMode {
         telemetry.addData("> Turret Angle", "%.1f°", outtakeSubsystem.getTurretAngle());
         telemetry.addData("> Angle Offset", outtakeSubsystem.getManualAngleOffset());
         telemetry.addData("> Lock Offset", "%.1f°", Math.toDegrees(manualHeadingOffset));
-        intakeSubsytem.displayTelemetry(telemetry);
+        intakeSubsystem.displayTelemetry(telemetry);
         telemetry.addData("> Drive Pos", "X:%.1f Y:%.1f H:%.1f", currentPose.getX(), currentPose.getY(),
                 Math.toDegrees(currentPose.getHeading()));
 

@@ -2,17 +2,17 @@ package org.firstinspires.ftc.teamcode.opmode.tuning;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
+import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsystem;
 
 @TeleOp(name = "Intake Fast Tuning", group = "Tuning")
 public class IntakeTuningOpMode extends LinearOpMode {
 
-    private IntakeSubsytem intakeSubsystem;
+    private IntakeSubsystem intakeSubsystem;
 
     @Override
     public void runOpMode() {
         // Initialize the Intake Subsystem
-        intakeSubsystem = new IntakeSubsytem(hardwareMap);
+        intakeSubsystem = new IntakeSubsystem(hardwareMap);
         intakeSubsystem.InitIntake();
 
         telemetry.addData("Status", "Initialized. Waiting for start...");

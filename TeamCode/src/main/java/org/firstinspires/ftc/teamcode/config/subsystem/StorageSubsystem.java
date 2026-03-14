@@ -13,6 +13,8 @@ public class StorageSubsystem {
     private final TouchSensor magneticSensor;
     private final Servo servoGate;
 
+    private OuttakeSubsystem outtake;
+
     private enum State {
         IDLE,
         HOMING_FAST, // Rapidly seeking the sensor
@@ -36,11 +38,12 @@ public class StorageSubsystem {
     // --- TUNING CONSTANTS ---
     private static final int RECOIL_TICKS = -110;
     private static final int BACKOFF_TICKS = -50; // Distance to move away from sensor
+    private static final double TICKS_PER_REV = 384.5;
 
     private static final double GATE_CLOSE_POS = 0.23;
     private static final double GATE_OPEN_POS = 0.04;
 
-    private static final double HOMING_FAST_POWER = 0.4;
+    private static final double HOMING_FAST_POWER = 0.3;
     private static final double HOMING_SLOW_POWER = 0.1; // Increased to prevent stalling during auto
 
     private static final double NUDGE_POWER = 0.1;
@@ -48,9 +51,10 @@ public class StorageSubsystem {
     private static final double RECOIL_POWER = 0.7;
 
     private static final long GATE_MOVEMENT_TIME_MS = 560;
-    private static final long SHOOTING_DURATION_MS = 700;
+    private static final long SHOOTING_DURATION_MS = 650;
 
-    public StorageSubsystem(HardwareMap hardwareMap) {
+    public StorageSubsystem(HardwareMap hardwareMap, OuttakeSubsystem outtake) {
+        this.outtake = outtake;
         storageMotor = hardwareMap.get(DcMotorEx.class, "StorageMotor");
         magneticSensor = hardwareMap.get(TouchSensor.class, "MagneticSensor");
         servoGate = hardwareMap.get(Servo.class, "GateServo");
@@ -101,14 +105,48 @@ public class StorageSubsystem {
                 break;
 
             case SHOOTING:
-                if (timer.milliseconds() > SHOOTING_DURATION_MS) {
+                double elapsed = timer.milliseconds();
+
+                // Divide the duration into 3 segments for the 3 balls
+                if (elapsed < (SHOOTING_DURATION_MS / 3.0)) {
+                    outtake.autoShotOffset = -50; // First ball
+                } else if (elapsed < (2.0 * SHOOTING_DURATION_MS / 3.0)) {
+                    outtake.autoShotOffset = 0; // Second ball
+                } else {
+                    outtake.autoShotOffset = 50; // Final ball
+                }
+
+                if (elapsed > SHOOTING_DURATION_MS) {
+                    outtake.autoShotOffset = 0; // CRITICAL: Reset to 0 when done
                     ResetToIntake();
                 }
                 break;
 
             case FAST_RESET:
-                if (Math.abs(storageMotor.getCurrentPosition()) < 10) {
-                    currentState = State.IDLE;
+                // 1. Timeout failsafe
+                if (timer.milliseconds() > 1500) {
+                    hasCalibrated = false;
+                    ResetToIntake(true); // Force full homing if stuck
+                    return;
+                }
+
+                int error = Math.abs(storageMotor.getCurrentPosition() - storageMotor.getTargetPosition());
+                // 2. More generous tolerance (15 ticks) for when the robot is moving
+                if (error < 15 || !storageMotor.isBusy()) {
+                    // 3. Brief pause to let the magnetic sensor stabilize
+                    if (timer.milliseconds() > 700) {
+                        if (magneticSensor.isPressed()) {
+                            storageMotor.setMode(RunMode.STOP_AND_RESET_ENCODER);
+                            storageMotor.setTargetPosition(0);
+                            storageMotor.setMode(RunMode.RUN_TO_POSITION);
+                            storageMotor.setPower(1.0); // Hold zero
+                            currentState = State.IDLE;
+                        } else {
+                            // We missed the magnet! Go back to full homing
+                            hasCalibrated = false;
+                            ResetToIntake(true);
+                        }
+                    }
                 }
                 break;
 
@@ -133,26 +171,28 @@ public class StorageSubsystem {
         if (!openedGate)
             OpenGate();
 
-        // Failsafe: if we rotate for too long without hitting the sensor, abort to
-        // avoid damage
         if (timerHome.seconds() > 5.0) {
             Abort();
             return;
         }
 
         if (magneticSensor.isPressed()) {
-            // Soft transition: don't reset encoder while moving fast.
-            int hitPosition = storageMotor.getCurrentPosition();
-            storageMotor.setTargetPosition(hitPosition + BACKOFF_TICKS);
+            // 1. HARD STOP: This kills the momentum that causes overshooting in Auto
+            storageMotor.setPower(0);
+
+            // 2. RESET: Mark this exact spot as "0" temporarily
+            // This prevents the motor from trying to "run back" 360 degrees
+            storageMotor.setMode(RunMode.STOP_AND_RESET_ENCODER);
+
+            // 3. RELATIVE BACKOFF: Move in reverse (e.g., -50 ticks)
+            storageMotor.setTargetPosition(BACKOFF_TICKS);
             storageMotor.setMode(RunMode.RUN_TO_POSITION);
-            storageMotor.setPower(0.15); // Power for the relative move
+            storageMotor.setPower(0.3);
+
             currentState = State.HOMING_BACKOFF;
         } else {
-            // MANDATORY ENFORCEMENT: Lock power to homing speed every frame
-            storageMotor.setPower(HOMING_FAST_POWER);
-            if (storageMotor.getMode() != RunMode.RUN_USING_ENCODER) {
-                storageMotor.setMode(RunMode.RUN_USING_ENCODER);
-            }
+            storageMotor.setMode(RunMode.RUN_USING_ENCODER);
+            storageMotor.setPower(HOMING_FAST_POWER); // Moving Forward (+)
         }
     }
 
@@ -175,32 +215,27 @@ public class StorageSubsystem {
 
     private void handleHomingSlow() {
         if (magneticSensor.isPressed()) {
-            // Stop immediately on the first touch to prevent overshoot
             storageMotor.setPower(0);
 
+            // Debounce: Wait 50ms to ensure the signal is stable
             if (timerHome.milliseconds() > 50) {
-                // Final Zero calibration after confirming the hit while stationary
                 storageMotor.setMode(RunMode.STOP_AND_RESET_ENCODER);
                 storageMotor.setTargetPosition(0);
                 storageMotor.setMode(RunMode.RUN_TO_POSITION);
-                storageMotor.setPower(1.0);
+                storageMotor.setPower(1.0); // Hold position at 0
 
-                // MUST transition to IDLE first so StartShooting can actually trigger
                 currentState = State.IDLE;
+                hasCalibrated = true;
 
                 if (shootQueued) {
                     shootQueued = false;
                     StartShooting();
                 }
-                hasCalibrated = true;
             }
         } else {
-            // Sensor not hit yet (or ghost hit lost), reset debounce timer and keep moving
             timerHome.reset();
-            if (storageMotor.getMode() != RunMode.RUN_USING_ENCODER) {
-                storageMotor.setMode(RunMode.RUN_USING_ENCODER);
-            }
-            storageMotor.setPower(HOMING_SLOW_POWER);
+            storageMotor.setMode(RunMode.RUN_USING_ENCODER);
+            storageMotor.setPower(HOMING_SLOW_POWER); // Slow Forward (+)
         }
     }
 
@@ -224,22 +259,42 @@ public class StorageSubsystem {
         currentState = State.RECOILING;
     }
 
+    // Default version (used by the state machine)
     public void ResetToIntake() {
-        if (!hasCalibrated) {
-            // Trigger motor power INSTANTLY for magnetic homing
-            storageMotor.setPower(HOMING_FAST_POWER);
+        ResetToIntake(false); // Default to fast reset if possible
+    }
+
+    // Overloaded version for manual calls from OpMode
+    public void ResetToIntake(boolean forceFullHoming) {
+        storageMotor.setPower(0); // Kill shooting power immediately
+
+        if (!hasCalibrated || forceFullHoming) {
+            // --- FULL HOMING ---
+            hasCalibrated = false;
             storageMotor.setMode(RunMode.RUN_USING_ENCODER);
+            storageMotor.setPower(HOMING_FAST_POWER);
 
             OpenGate();
             timerHome.reset();
-            currentState = State.HOMING_FAST;
+            currentState = State.HOMING_FAST; // <--- ENSURE THIS LINE EXECUTES
         } else {
-            // Very fast reset using existing encoder calibration
-            storageMotor.setTargetPosition(0);
+            // --- FAST RESET ---
+            int currentPos = storageMotor.getCurrentPosition();
+            double normalizedPos = currentPos % TICKS_PER_REV;
+            if (normalizedPos < 0)
+                normalizedPos += TICKS_PER_REV;
+
+            double delta = (normalizedPos > (TICKS_PER_REV / 2.0))
+                    ? (TICKS_PER_REV - normalizedPos)
+                    : -normalizedPos;
+
+            storageMotor.setTargetPosition((int) (currentPos + delta));
             storageMotor.setMode(RunMode.RUN_TO_POSITION);
-            storageMotor.setPower(1.0);
+            storageMotor.setPower(0.6);
+
             OpenGate();
-            currentState = State.FAST_RESET;
+            timer.reset();
+            currentState = State.FAST_RESET; // <--- ENSURE THIS LINE EXECUTES
         }
     }
 

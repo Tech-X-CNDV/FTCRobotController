@@ -9,7 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
+import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.FieldPoses;
@@ -24,7 +24,7 @@ public class AutoMicBlue extends OpMode {
     private int pathState;
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
-    IntakeSubsytem intakeSubsytem;
+    IntakeSubsystem intakeSubsystem;
     private final ElapsedTime matchTimer = new ElapsedTime();
 
     // public Outtake motorOuttake,servoPusher;
@@ -93,7 +93,7 @@ public class AutoMicBlue extends OpMode {
             case 2:
                 if (!follower.isBusy()) {
                     follower.setMaxPower(0.6);
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     follower.followPath(path2);
                     setPathState(3);
                 }
@@ -122,14 +122,14 @@ public class AutoMicBlue extends OpMode {
                  * } else {
                  * storageSubsystem.setServoPos(1);
                  * outtakeSubsystem.SetShootMotorPower(0);
-                 * intakeSubsytem.setPower(0);
+                 * intakeSubsystem.setPower(0);
                  * follower.setMaxPower(1);
                  * follower.followPath(path4, true);
                  * setPathState(6);
                  * }
                  */
                 outtakeSubsystem.SetShootMotorPower(0);
-                intakeSubsytem.setPower(0);
+                intakeSubsystem.setPower(0);
                 follower.setMaxPower(1);
                 follower.followPath(path4, true);
                 setPathState(6);
@@ -152,12 +152,12 @@ public class AutoMicBlue extends OpMode {
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
 
-        storageSubsystem = new StorageSubsystem(hardwareMap);
+        storageSubsystem = new StorageSubsystem(hardwareMap, outtakeSubsystem);
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
         // storageSubsystem.InitStorage();
 
-        intakeSubsytem = new IntakeSubsytem(hardwareMap);
-        intakeSubsytem.InitIntake();
+        intakeSubsystem = new IntakeSubsystem(hardwareMap);
+        intakeSubsystem.InitIntake();
 
         pathTimer = new Timer();
         actionTimer = new Timer();
@@ -188,11 +188,11 @@ public class AutoMicBlue extends OpMode {
         PoseStorage.autoPoseBlue = currentPose;
 
         // --- 30s FAILSAFE GUARDIAN ---
-        if (matchTimer.seconds() > 29.8) {
+        if (matchTimer.seconds() > 29.7) {
             follower.breakFollowing();
             follower.setMaxPower(0);
             outtakeSubsystem.SetShootMotorPower(0);
-            intakeSubsytem.setPower(0);
+            intakeSubsystem.setPower(0);
             PoseStorage.isRed = false;
             PoseStorage.autoPoseBlue = currentPose;
             requestOpModeStop();
@@ -203,7 +203,7 @@ public class AutoMicBlue extends OpMode {
         telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
 
         // --- SUBSYSTEMS TELEMETRY ---
-        intakeSubsytem.displayTelemetry(telemetry);
+        intakeSubsystem.displayTelemetry(telemetry);
         // storageSubsystem.displayTelemetry(telemetry);
         outtakeSubsystem.displayTelemetry(telemetry);
 

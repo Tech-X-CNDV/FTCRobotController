@@ -4,10 +4,10 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-public class IntakeSubsytem {
+public class IntakeSubsystem {
     public final DcMotorEx intakeMotor;
 
-    public IntakeSubsytem(HardwareMap hardwareMap) {
+    public IntakeSubsystem(HardwareMap hardwareMap) {
         intakeMotor = hardwareMap.get(DcMotorEx.class, "PrindMotor");
     }
 

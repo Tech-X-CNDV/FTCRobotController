@@ -1,6 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.pedropathing.follower.Follower;
+import com.qualcomm.hardware.lynx.LynxModule;
+import java.util.List;
+
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
@@ -10,7 +13,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
+import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
@@ -19,14 +22,19 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @Autonomous(name = "05: AutoPreloadParkBlue", group = "Active")
 public class AutoPreloadParkBlue extends OpMode {
+    private List<LynxModule> allHubs;
+
     private Follower follower;
     private Timer pathTimer;
     private int pathState;
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
-    IntakeSubsytem intakeSubsystem;
+    IntakeSubsystem intakeSubsystem;
     private boolean shootingStarted = false;
     private final ElapsedTime timer = new ElapsedTime();
+    private double lastTime = 0;
+    private double loopTime;
+    private double telemetryTimer = 0;
     private final ElapsedTime matchTimer = new ElapsedTime();
 
     // Constant Poses
@@ -85,14 +93,19 @@ public class AutoPreloadParkBlue extends OpMode {
 
     @Override
     public void init() {
+        allHubs = hardwareMap.getAll(LynxModule.class);
+        for (LynxModule hub : allHubs) {
+            hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+        }
+
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
 
-        storageSubsystem = new StorageSubsystem(hardwareMap);
+        storageSubsystem = new StorageSubsystem(hardwareMap, outtakeSubsystem);
         storageSubsystem.InitStorage();
         storageSubsystem.ResetToIntake(); // Home during init
 
-        intakeSubsystem = new IntakeSubsytem(hardwareMap);
+        intakeSubsystem = new IntakeSubsystem(hardwareMap);
         intakeSubsystem.InitIntake();
 
         pathTimer = new Timer();
@@ -107,6 +120,13 @@ public class AutoPreloadParkBlue extends OpMode {
 
     @Override
     public void init_loop() {
+        if (allHubs == null) {
+            allHubs = hardwareMap.getAll(LynxModule.class);
+        }
+        for (LynxModule hub : allHubs) {
+            hub.clearBulkCache();
+        }
+
         storageSubsystem.update();
         outtakeSubsystem.update();
         telemetry.addData("Storage State", storageSubsystem.getState());
@@ -126,6 +146,17 @@ public class AutoPreloadParkBlue extends OpMode {
 
     @Override
     public void loop() {
+        if (allHubs == null) {
+            allHubs = hardwareMap.getAll(LynxModule.class);
+        }
+        for (LynxModule hub : allHubs) {
+            hub.clearBulkCache();
+        }
+
+        double currentTime = timer.milliseconds();
+        loopTime = currentTime - lastTime;
+        lastTime = currentTime;
+
         follower.update();
         storageSubsystem.update();
         outtakeSubsystem.update();
@@ -144,7 +175,7 @@ public class AutoPreloadParkBlue extends OpMode {
         autonomousPathUpdate(isBusy, currentPose);
 
         // --- 30s FAILSAFE GUARDIAN ---
-        if (matchTimer.seconds() > 29.8) {
+        if (matchTimer.seconds() > 29.7) {
             follower.breakFollowing();
             follower.setMaxPower(0);
             outtakeSubsystem.SetShootMotorPower(0);
@@ -155,9 +186,22 @@ public class AutoPreloadParkBlue extends OpMode {
 
         PoseStorage.autoPoseBlue = currentPose;
 
-        telemetry.addData("Auto State", "%d (%.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
-        telemetry.addData("Current Position", currentPose.toString());
-        telemetry.update();
+        if (currentTime > telemetryTimer + 100) {
+            loopTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            telemetry.addData("Loop Time", "%.2f ms", loopTime);
+            telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
+            telemetry.addData("Current Position", currentPose.toString());
+            telemetry.addData("Drive X", "%.2f", currentPose.getX());
+            telemetry.addData("Drive Y", "%.2f", currentPose.getY());
+            telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
+            // --- SUBSYSTEMS TELEMETRY ---
+            intakeSubsystem.displayTelemetry(telemetry);
+            storageSubsystem.displayTelemetry(telemetry);
+            outtakeSubsystem.displayTelemetry(telemetry);
+            telemetry.update();
+            telemetryTimer = currentTime;
+        }
     }
 
     @Override

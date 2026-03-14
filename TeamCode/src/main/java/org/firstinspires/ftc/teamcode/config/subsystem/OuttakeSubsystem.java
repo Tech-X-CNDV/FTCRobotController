@@ -19,9 +19,11 @@ public class OuttakeSubsystem {
     private final CRServo turretServo1, turretServo2;
     private final DcMotorEx turretEncoder;
 
-    public double targetVelocity = 2000;
+    public double targetVelocity = 0;
     public double flywheelP = 50;
     public double flywheelF = 13.350;
+    public double flywheelD = 5.0;
+    private double lastAppliedD = -1;
     private double lastAppliedTarget = -1;
     private double lastAppliedP = -1;
     private double lastAppliedF_base = -1;
@@ -31,6 +33,8 @@ public class OuttakeSubsystem {
     // Flywheel Velocity Constants (ticks/sec)
     public static double DEFAULT_SHOOT_VELOCITY = 2000; // Default target velocity
     public static double AUTO_SHOOT_VELOCITY = 2000; // Used by auto-aim static mode
+    public static double IDLE_SHOOT_VELOCITY = 1000; // Lower speed to save battery/motor heat
+    public double autoShotOffset = 0; // Temporary offset for staged shooting
     private boolean shootMotorEnabled = false;
     private double manualVelocityOffset = 0;
     private double manualAngleOffset = 0;
@@ -69,7 +73,7 @@ public class OuttakeSubsystem {
     public static double MIN_SHOOT_VELOCITY = 1300; // Ticks/sec for close shots
     public static double MAX_SHOOT_VELOCITY = 2770; // Ticks/sec for far shots (also used as hard clamp)
     public static double MAX_VELOCITY = 2770; // Absolute max the motor can physically do
-    public static double VELOCITY_DISTANCE_SCALING = 4.6; // Extra ticks/sec per cm of distance
+    public static double VELOCITY_DISTANCE_SCALING = 5.2; // Extra ticks/sec per cm of distance
 
     // Angle Distance Scaling for outtake angle
     private final double CLOSE_DIST = 30.0;
@@ -98,7 +102,7 @@ public class OuttakeSubsystem {
 
         shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
         shootMotor2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        shootMotor2.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
         turretServo1.setDirection(CRServo.Direction.REVERSE);
         turretServo2.setDirection(CRServo.Direction.REVERSE);
@@ -130,34 +134,29 @@ public class OuttakeSubsystem {
         updateTurretPID();
 
         if (!shootMotorEnabled) {
+            shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+            shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
             shootMotor.setPower(0);
             shootMotor2.setPower(0);
             return;
         }
 
-        // 1. Ensure Master (shootMotor) is in PID mode
-        if (shootMotor.getMode() != DcMotorEx.RunMode.RUN_USING_ENCODER) {
-            shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-            updatePIDF();
-        }
-
+        // Apply identical target velocities (PIDF control handles spinup natively)
+        updatePIDF();
         shootMotor.setVelocity(targetVelocity);
-
-        // 3. Slave (shootMotor2) follows Master's power
-        // This ensures both motors are pushing with the exact same effort.
-        shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-        shootMotor2.setPower(shootMotor.getPower());
+        shootMotor2.setVelocity(targetVelocity);
     }
 
     public void updateAutoAimPower(double deltaX, double deltaY) {
         double distance = Math.hypot(deltaX, deltaY);
         // Velocity scales linearly with distance
-        double velocity = MIN_SHOOT_VELOCITY + (distance * VELOCITY_DISTANCE_SCALING) + manualVelocityOffset;
+        double velocity = MIN_SHOOT_VELOCITY + (distance * VELOCITY_DISTANCE_SCALING) + manualVelocityOffset
+                + autoShotOffset;
         targetVelocity = Math.max(MIN_SHOOT_VELOCITY, Math.min(velocity, MAX_SHOOT_VELOCITY));
     }
 
     public void updateStaticPower() {
-        double velocity = AUTO_SHOOT_VELOCITY + manualVelocityOffset;
+        double velocity = AUTO_SHOOT_VELOCITY + manualVelocityOffset + autoShotOffset;
         targetVelocity = Math.max(MIN_SHOOT_VELOCITY, Math.min(velocity, MAX_SHOOT_VELOCITY));
     }
 
@@ -291,47 +290,21 @@ public class OuttakeSubsystem {
     }
 
     public void updateTurretLock(Pose robotPose, Pose targetPose, double manualOffset) {
-        InitVision(); // Ensure HuskyLens is initialized
-        HuskyLens.Block[] blocks = hLens.blocks();
-        HuskyLens.Block targetBlock = null;
+        // HuskyLens bypassed - using Pedro Pathing Pose Lock only
+        double deltaX = targetPose.getX() - robotPose.getX();
+        double deltaY = targetPose.getY() - robotPose.getY();
 
-        for (HuskyLens.Block block : blocks) {
-            if (block.id == TARGET_TAG_ID) {
-                targetBlock = block;
-                break;
-            }
-        }
+        double angleToTarget = Math.atan2(deltaY, deltaX);
+        double relativeAngle = angleToTarget - robotPose.getHeading() +
+                Math.toRadians(5) + manualOffset;
 
-        double newTarget;
-        if (targetBlock != null) {
-            // Precise Lock using HuskyLens
-            double visualErrorDeg = -(targetBlock.x - 160) * (HUSKYLENS_FOV_DEG / 320.0);
+        while (relativeAngle > Math.PI)
+            relativeAngle -= 2 * Math.PI;
+        while (relativeAngle < -Math.PI)
+            relativeAngle += 2 * Math.PI;
 
-            // Add relative visual error to our current absolute target
-            double rawTargetDeg = turretTargetAngleDeg + visualErrorDeg +
-                    (manualOffset * 57.2958);
-
-            // Note: In visual mode, we dampen the update to prevent crazy oscillation if
-            // the tag shakes
-            newTarget = turretTargetAngleDeg + (rawTargetDeg - turretTargetAngleDeg) * 0.3;
-            isHuskyLock = true;
-        } else {
-            // Fallback to Pedro Pathing Pose Lock
-            double deltaX = targetPose.getX() - robotPose.getX();
-            double deltaY = targetPose.getY() - robotPose.getY();
-
-            double angleToTarget = Math.atan2(deltaY, deltaX);
-            double relativeAngle = angleToTarget - robotPose.getHeading() +
-                    Math.toRadians(5) + manualOffset;
-
-            while (relativeAngle > Math.PI)
-                relativeAngle -= 2 * Math.PI;
-            while (relativeAngle < -Math.PI)
-                relativeAngle += 2 * Math.PI;
-
-            newTarget = Math.toDegrees(relativeAngle);
-            isHuskyLock = false;
-        }
+        double newTarget = Math.toDegrees(relativeAngle);
+        isHuskyLock = false;
 
         // Apply limits and roll-over through the centralized setter
         setTurretTargetAngle(newTarget);
@@ -455,29 +428,24 @@ public class OuttakeSubsystem {
     }
 
     private void updatePIDF() {
-        // 1. Performance Guard
         if (pidfUpdateTimer.milliseconds() < PIDF_UPDATE_INTERVAL_MS)
             return;
 
-        // 2. The "Direct Power" Math
-        // appliedF (kV): Power per tick/sec
-        double appliedF = flywheelF;
-
-        // 3. Significant Change Detection
-        // Lowered threshold to 20 for more precise tuning
+        // Detection logic updated to include D
         if (Math.abs(targetVelocity - lastAppliedTarget) > 20 ||
                 flywheelP != lastAppliedP ||
+                flywheelD != lastAppliedD || // Check for D changes
                 flywheelF != lastAppliedF_base) {
 
             com.qualcomm.robotcore.hardware.PIDFCoefficients coefficients = new com.qualcomm.robotcore.hardware.PIDFCoefficients(
-                    flywheelP, 0, 0, appliedF);
+                    flywheelP, 0, flywheelD, flywheelF);
 
-            // Apply to shootMotor (The Master motor running with encoders)
             shootMotor.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
+            shootMotor2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, coefficients);
 
-            // Update tracking variables
             lastAppliedTarget = targetVelocity;
             lastAppliedP = flywheelP;
+            lastAppliedD = flywheelD;
             lastAppliedF_base = flywheelF;
             pidfUpdateTimer.reset();
         }
@@ -485,7 +453,7 @@ public class OuttakeSubsystem {
 
     public void displayTelemetry(Telemetry telemetry) {
         if (shootMotorEnabled) {
-            telemetry.addLine("<h1><font color='#ff0000ff'>*** SHOOT MOTOR ENABLED ***</font></h1>");
+            telemetry.addLine("<h2><font color='#ff0000'>Shoot Motor Enabled</font></h2>");
         }
         if (isReadyToFire()) {
             telemetry.addLine("<h1><font color='#00FF00'>*** READY TO FIRE ***</font></h1>");

@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import com.qualcomm.robotcore.util.ElapsedTime;
-import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
+import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
@@ -25,7 +25,7 @@ public class AutoBluePartial extends OpMode {
     private int pathState;
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
-    IntakeSubsytem intakeSubsytem;
+    IntakeSubsystem intakeSubsystem;
     private boolean dynamicAimStarted = false;
     private final ElapsedTime timer = new ElapsedTime();
     private final ElapsedTime matchTimer = new ElapsedTime();
@@ -163,7 +163,7 @@ public class AutoBluePartial extends OpMode {
             case 3: // STAB/INTAKE 1 (Path 3)
                 if (!isBusy) {
                     follower.setMaxPower(0.9);
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     follower.followPath(path3);
                     setPathState(4);
                 }
@@ -183,7 +183,7 @@ public class AutoBluePartial extends OpMode {
 
             case 5: // ARRIVED Score 1
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
+                    intakeSubsystem.setPower(0);
                     // storageSubsystem.autoThrow = true;
                     setPathState(6);
                 }
@@ -212,7 +212,7 @@ public class AutoBluePartial extends OpMode {
             case 7: // STAB/INTAKE 2 (Path 6)
                 if (!isBusy) {
                     follower.setMaxPower(0.9);
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     follower.followPath(path6);
                     setPathState(8);
                 }
@@ -231,7 +231,7 @@ public class AutoBluePartial extends OpMode {
 
             case 9: // ARRIVED Score 2
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
+                    intakeSubsystem.setPower(0);
                     // storageSubsystem.autoThrow = true;
                     setPathState(10);
                 }
@@ -246,12 +246,12 @@ public class AutoBluePartial extends OpMode {
                      * storageSubsystem.ThrowAll(0.32);
                      * } else {
                      * storageSubsystem.setServoPos(1);
-                     * intakeSubsytem.setPower(1);
+                     * intakeSubsystem.setPower(1);
                      * follower.followPath(path9, true); // Park
                      * setPathState(11);
                      * }
                      */
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     follower.followPath(path9, true);
                     setPathState(11);
                 }
@@ -286,13 +286,13 @@ public class AutoBluePartial extends OpMode {
                      * storageSubsystem.ThrowAll(0.32);
                      * } else {
                      * storageSubsystem.setServoPos(1);
-                     * intakeSubsytem.setPower(1);
+                     * intakeSubsystem.setPower(1);
                      * outtakeSubsystem.SetShootMotorPower(0);
                      * // follower.followPath(path8, true); // Park
                      * setPathState(15);
                      * }
                      */
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     outtakeSubsystem.SetShootMotorPower(0);
                     setPathState(15);
                 }
@@ -316,12 +316,12 @@ public class AutoBluePartial extends OpMode {
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
 
-        storageSubsystem = new StorageSubsystem(hardwareMap);
+        storageSubsystem = new StorageSubsystem(hardwareMap, outtakeSubsystem);
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
         // storageSubsystem.InitStorage();
 
-        intakeSubsytem = new IntakeSubsytem(hardwareMap);
-        intakeSubsytem.InitIntake();
+        intakeSubsystem = new IntakeSubsystem(hardwareMap);
+        intakeSubsystem.InitIntake();
 
         pathTimer = new Timer();
         actionTimer = new Timer();
@@ -370,11 +370,11 @@ public class AutoBluePartial extends OpMode {
         }
 
         // --- 30s FAILSAFE GUARDIAN ---
-        if (matchTimer.seconds() > 29.8) {
+        if (matchTimer.seconds() > 29.7) {
             follower.breakFollowing();
             follower.setMaxPower(0);
             outtakeSubsystem.SetShootMotorPower(0);
-            intakeSubsytem.setPower(0);
+            intakeSubsystem.setPower(0);
             PoseStorage.autoPoseBlue = currentPose;
             requestOpModeStop();
         }
@@ -391,7 +391,7 @@ public class AutoBluePartial extends OpMode {
         telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
 
         // --- SUBSYSTEMS TELEMETRY ---
-        intakeSubsytem.displayTelemetry(telemetry);
+        intakeSubsystem.displayTelemetry(telemetry);
         // storageSubsystem.displayTelemetry(telemetry);
         outtakeSubsystem.displayTelemetry(telemetry);
 

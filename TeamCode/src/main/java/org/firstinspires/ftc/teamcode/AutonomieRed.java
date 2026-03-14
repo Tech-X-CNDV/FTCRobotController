@@ -1,6 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.pedropathing.follower.Follower;
+import com.qualcomm.hardware.lynx.LynxModule;
+import java.util.List;
+
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
@@ -11,7 +14,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsytem;
+import org.firstinspires.ftc.teamcode.config.subsystem.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.OuttakeSubsystem;
 import org.firstinspires.ftc.teamcode.config.subsystem.StorageSubsystem;
 import org.firstinspires.ftc.teamcode.config.PoseStorage;
@@ -20,17 +23,28 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @Autonomous(name = "04: AutoRed", group = "Active")
 public class AutonomieRed extends OpMode {
+    private List<LynxModule> allHubs;
+
     private Follower follower;
     private Timer pathTimer, actionTimer;
     private int pathState;
     OuttakeSubsystem outtakeSubsystem;
     StorageSubsystem storageSubsystem;
-    IntakeSubsytem intakeSubsytem;
+    IntakeSubsystem intakeSubsystem;
     private boolean shootingStarted = false; // guards StartShooting() so it is only called once per state
     private final ElapsedTime timer = new ElapsedTime();
     private final ElapsedTime matchTimer = new ElapsedTime();
     private double lastTime = 0;
     private double loopTime;
+    private double telemetryTimer = 0;
+
+    // --- STUCK FAILSAFE VARIABLES ---
+    private final ElapsedTime stuckTimer = new ElapsedTime();
+    private Pose lastFailsafePose = new Pose(0, 0, 0);
+    private double lastDistToTarget = 0.0;
+    private boolean isRecovering = false;
+    private final double STUCK_THRESHOLD_INCHES = 0.5;
+    private final double STUCK_CHECK_INTERVAL_MS = 250;
 
     // Pose Constants
     private final Pose startPose = FieldPoses.START.mirror();
@@ -162,7 +176,7 @@ public class AutonomieRed extends OpMode {
             case 3: // STAB/INTAKE 1 (Path 3)
                 if (!isBusy) {
                     follower.setMaxPower(0.9);
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     follower.followPath(path3);
                     setPathState(4);
                 }
@@ -177,7 +191,7 @@ public class AutonomieRed extends OpMode {
                 break;
             case 5: // ARRIVED Score 1
                 if (pathTimer.getElapsedTimeSeconds() > 0.5) {
-                    intakeSubsytem.setPower(-1);
+                    intakeSubsystem.setPower(-1);
                 }
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
@@ -189,7 +203,7 @@ public class AutonomieRed extends OpMode {
                 break;
             case 6: // SHOOTING 1
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
+                    intakeSubsystem.setPower(0);
                     if (!shootingStarted) {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
@@ -205,7 +219,7 @@ public class AutonomieRed extends OpMode {
             case 7: // STAB/INTAKE 2 (Path 6)
                 if (!isBusy) {
                     follower.setMaxPower(0.9);
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     follower.followPath(path6);
                     setPathState(8);
                 }
@@ -220,7 +234,7 @@ public class AutonomieRed extends OpMode {
                 break;
             case 9: // ARRIVED Score 2
                 if (pathTimer.getElapsedTimeSeconds() > 0.5) {
-                    intakeSubsytem.setPower(-1);
+                    intakeSubsystem.setPower(-1);
                 }
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
@@ -231,7 +245,7 @@ public class AutonomieRed extends OpMode {
                 break;
             case 10: // SHOOTING 2
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
+                    intakeSubsystem.setPower(0);
                     if (!shootingStarted) {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
@@ -247,7 +261,7 @@ public class AutonomieRed extends OpMode {
             case 11: // STAB/INTAKE 3 (Path 10)
                 if (!isBusy) {
                     follower.setMaxPower(1);
-                    intakeSubsytem.setPower(1);
+                    intakeSubsystem.setPower(1);
                     follower.followPath(path10);
                     setPathState(12);
                 }
@@ -264,7 +278,7 @@ public class AutonomieRed extends OpMode {
                 break;
             case 13: // ARRIVED Score 3
                 if (pathTimer.getElapsedTimeSeconds() > 0.5) {
-                    intakeSubsytem.setPower(-1);
+                    intakeSubsystem.setPower(-1);
                 }
                 if (!isBusy) {
                     // storageSubsystem.autoThrow = true;
@@ -275,7 +289,7 @@ public class AutonomieRed extends OpMode {
                 break;
             case 14: // SHOOTING 3
                 if (!isBusy) {
-                    intakeSubsytem.setPower(0);
+                    intakeSubsystem.setPower(0);
                     if (!shootingStarted) {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
@@ -303,15 +317,20 @@ public class AutonomieRed extends OpMode {
 
     @Override
     public void init() {
+        allHubs = hardwareMap.getAll(LynxModule.class);
+        for (LynxModule hub : allHubs) {
+            hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+        }
+
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
 
-        storageSubsystem = new StorageSubsystem(hardwareMap);
+        storageSubsystem = new StorageSubsystem(hardwareMap, outtakeSubsystem);
         storageSubsystem.InitStorage();
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
 
-        intakeSubsytem = new IntakeSubsytem(hardwareMap);
-        intakeSubsytem.InitIntake();
+        intakeSubsystem = new IntakeSubsystem(hardwareMap);
+        intakeSubsystem.InitIntake();
 
         pathTimer = new Timer();
         actionTimer = new Timer();
@@ -325,6 +344,16 @@ public class AutonomieRed extends OpMode {
     }
 
     @Override
+    public void init_loop() {
+        if (allHubs == null) {
+            allHubs = hardwareMap.getAll(LynxModule.class);
+        }
+        for (LynxModule hub : allHubs) {
+            hub.clearBulkCache();
+        }
+    }
+
+    @Override
     public void start() {
         pathTimer.resetTimer();
         matchTimer.reset();
@@ -335,12 +364,78 @@ public class AutonomieRed extends OpMode {
 
     @Override
     public void loop() {
+        if (allHubs == null) {
+            allHubs = hardwareMap.getAll(LynxModule.class);
+        }
+        for (LynxModule hub : allHubs) {
+            hub.clearBulkCache();
+        }
+
         double currentTime = timer.milliseconds();
         loopTime = currentTime - lastTime;
         lastTime = currentTime;
 
         boolean isBusy = follower.isBusy();
         Pose currentPose = follower.getPose();
+
+        // // --- GLOBAL STUCK FAILSAFE (Improved for Slippage) ---
+
+        // // 1. Current distance to the goal
+        // Pose target = follower.getPose();
+        // double currentDistToTarget = Math.hypot(
+        // target.getX() - currentPose.getX(),
+        // target.getY() - currentPose.getY());
+
+        // // 2. The "Hold Point" Safety Check
+        // boolean isActuallyMovingToTarget = follower.isBusy() && currentDistToTarget >
+        // 1.2;
+
+        // if (isActuallyMovingToTarget && !isRecovering) {
+        // if (stuckTimer.milliseconds() > STUCK_CHECK_INTERVAL_MS) {
+
+        // // CHECK: How much did our progress toward the target improve?
+        // // Positive value = we got closer. Negative = we drifted away.
+        // double progressMade = lastDistToTarget - currentDistToTarget;
+
+        // // NEW THRESHOLD: If we haven't closed the gap by at least 0.25 inches
+        // if (progressMade < STUCK_THRESHOLD_INCHES) {
+        // isRecovering = true;
+        // actionTimer.resetTimer();
+        // follower.breakFollowing();
+        // }
+
+        // // Update tracking variables for the next interval
+        // lastDistToTarget = currentDistToTarget;
+        // stuckTimer.reset();
+        // }
+        // } else {
+        // // If we aren't "busy" or are within the 1.2" deadzone,
+        // // keep the progress tracker synced so it doesn't "jump" when a new path
+        // starts.
+        // lastDistToTarget = currentDistToTarget;
+        // }
+
+        // if (isRecovering) {
+        // if (actionTimer.getElapsedTimeSeconds() < 0.5) {
+        // // Use the 'target' variable declared at the top
+        // double angleToTarget = Math.atan2(target.getY() - currentPose.getY(),
+        // target.getX() - currentPose.getX());
+
+        // double escapeAngle = angleToTarget + Math.PI;
+        // double escapeX = Math.cos(escapeAngle) * 0.5;
+        // double escapeY = Math.sin(escapeAngle) * 0.5;
+
+        // follower.setTeleOpDrive(escapeX, escapeY, 0.0, false, 0.0);
+        // } else {
+        // follower.setTeleOpDrive(0.0, 0.0, 0.0, false, 0.0);
+        // isRecovering = false;
+        // stuckTimer.reset();
+        // retriggerCurrentPath();
+        // }
+        // } else {
+        // // Only update the path follower if we aren't nudging
+        // follower.update();
+        // }
 
         follower.update();
         storageSubsystem.update();
@@ -353,11 +448,11 @@ public class AutonomieRed extends OpMode {
         outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
 
         // --- 30s FAILSAFE GUARDIAN ---
-        if (matchTimer.seconds() > 29.8) {
+        if (matchTimer.seconds() > 29.7) {
             follower.breakFollowing();
             follower.setMaxPower(0);
             outtakeSubsystem.SetShootMotorPower(0);
-            intakeSubsytem.setPower(0);
+            intakeSubsystem.setPower(0);
             PoseStorage.autoPoseRed = currentPose;
             requestOpModeStop();
         }
@@ -370,21 +465,26 @@ public class AutonomieRed extends OpMode {
          * StorageSubsystem.RecoveryState.WAITING_FOR_RETRY
          * || storageSubsystem.recoveryState ==
          * StorageSubsystem.RecoveryState.RETURNING)
-         * intakeSubsytem.setPower(1);
+         * intakeSubsystem.setPower(1);
          */
-        // --- AUTO STATUS ---
-        telemetry.addData("Loop Time", "%.2f ms", loopTime);
-        telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
+        if (currentTime > telemetryTimer + 100) {
+            // --- AUTO STATUS ---
+            telemetry.addData("Loop Time", "%.2f ms", loopTime);
+            telemetry.addData("State", "%d (Time: %.2f s)", pathState, pathTimer.getElapsedTimeSeconds());
 
-        // --- DRIVE / POSITION ---
-        telemetry.addData("Drive X", "%.2f", currentPose.getX());
-        telemetry.addData("Drive Y", "%.2f", currentPose.getY());
-        telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
+            // --- DRIVE / POSITION ---
+            telemetry.addData("Drive X", "%.2f", currentPose.getX());
+            telemetry.addData("Drive Y", "%.2f", currentPose.getY());
+            telemetry.addData("Drive Heading", "%.2f", Math.toDegrees(currentPose.getHeading()));
 
-        // --- SUBSYSTEMS TELEMETRY ---
-        intakeSubsytem.displayTelemetry(telemetry);
-        storageSubsystem.displayTelemetry(telemetry);
-        outtakeSubsystem.displayTelemetry(telemetry);
+            // --- SUBSYSTEMS TELEMETRY ---
+            intakeSubsystem.displayTelemetry(telemetry);
+            storageSubsystem.displayTelemetry(telemetry);
+            outtakeSubsystem.displayTelemetry(telemetry);
+
+            telemetry.update();
+            telemetryTimer = currentTime;
+        }
 
         telemetry.update();
     }
@@ -392,5 +492,15 @@ public class AutonomieRed extends OpMode {
     @Override
     public void stop() {
         // PoseStorage.autoPoseBlue = follower.getPose();
+    }
+
+    private void retriggerCurrentPath() {
+        // 1. Refresh path definitions to ensure everything is up to date
+        buildPaths();
+
+        // 2. Simply 'reset' the current state.
+        // This re-enters the current case in autonomousPathUpdate()
+        // and re-triggers the followPath() command.
+        setPathState(pathState);
     }
 }
