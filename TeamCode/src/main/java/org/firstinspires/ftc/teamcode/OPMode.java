@@ -37,7 +37,6 @@ public class OPMode extends OpMode {
     ElapsedTime runTime = new ElapsedTime();
     String[] patterns = { " ", "GPP ", "PGP ", "PPG ", " " };
     int lastColorId = 0;
-    int outtakeDir = 1;
     boolean foundPattern = false;
     char[] charPattern;
     boolean turretLockEnabled = false;
@@ -69,7 +68,6 @@ public class OPMode extends OpMode {
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(PoseStorage.isRed ? PoseStorage.autoPoseRed : PoseStorage.autoPoseBlue);
-        // targetTagId = PoseStorage.isRed ? 2 : 1;
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.HTML);
@@ -84,8 +82,6 @@ public class OPMode extends OpMode {
 
         outtakeSubsystem = new OuttakeSubsystem(hardwareMap);
         outtakeSubsystem.InitOuttake();
-        // outtakeSubsystem.TARGET_TAG_ID = PoseStorage.isRed ? 2 : 1; // bypass for now
-
         storageSubsystem = new StorageSubsystem(hardwareMap, outtakeSubsystem);
         storageSubsystem.InitStorage();
 
@@ -184,9 +180,9 @@ public class OPMode extends OpMode {
 
             if (chassisLockEnabled) {
                 targetPose = PoseStorage.isRed ? LOCK_POSE.mirror() : LOCK_POSE;
-                gamepad1.rumble(300); // Confirmation buzz
+                gamepad1.rumble(300); // 300ms vibration to confirm lock-on
             } else if (!smallBasketLockEnabled) {
-                // SYNC HEADING on release to prevent the "Joystick Jump"
+                // SYNC HEADING on release to prevent the "Joystick Jump" when switching from auto-rot to manual
                 Pose current = follower.getPose();
                 follower.setPose(new Pose(current.getX(), current.getY(), current.getHeading()));
             }
@@ -201,9 +197,9 @@ public class OPMode extends OpMode {
 
             if (smallBasketLockEnabled) {
                 targetPose = PoseStorage.isRed ? LOW_BASKET_POSE.mirror() : LOW_BASKET_POSE;
-                gamepad1.rumble(300); // Confirmation buzz
+                gamepad1.rumble(300); // 300ms vibration to confirm lock-on
             } else if (!chassisLockEnabled) {
-                // SYNC HEADING on release to prevent the "Joystick Jump"
+                // SYNC HEADING on release to prevent the "Joystick Jump" when switching from auto-rot to manual
                 Pose current = follower.getPose();
                 follower.setPose(new Pose(current.getX(), current.getY(), current.getHeading()));
             }
@@ -216,15 +212,6 @@ public class OPMode extends OpMode {
             // Turret encoder reset removed so the turret doesn't lose its physical zero
             gamepad1.rumbleBlips(2);
         }
-
-        // SNAP TO DRIVER FORWARD (D-Pad Up)
-        // if (gamepad1.dpadUpWasPressed()) {
-        // follower.holdPoint(
-        // new Pose(follower.getPose().getX(), follower.getPose().getY(),
-        // PoseStorage.allianceOffset),
-        // true);
-        // automatedDrive = true;
-        // }
 
         // 3. DRIVING & AIM LOGIC
         if (!automatedDrive) {
@@ -253,7 +240,8 @@ public class OPMode extends OpMode {
                         manualHeadingOffset -= gamepad1.right_stick_x * 0.015; // Tunable sensitivity
                     }
 
-                    double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
+                    // 5-degree offset added to account for mechanical outtake bias
+                double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
 
                     // Calculate Heading Error
                     double currentHeading = follower.getPose().getHeading();
@@ -355,9 +343,6 @@ public class OPMode extends OpMode {
             else
                 gamepad2.rumble(300);
         }
-        // if (outtakeSubsystem.isReadyToFire())
-        // gamepad2.rumble(100);
-
         // Outtake Servo Angle
         if (gamepad2.leftBumperWasReleased()) {
             if (chassisLockEnabled || smallBasketLockEnabled) {

@@ -34,8 +34,10 @@ If you are a driver, programmer, or coach, please refer to these guides for setu
 | Component | File Link |
 | :--- | :--- |
 | **Main TeleOp** | [`OPMode.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/OPMode.java) |
-| **Main Auto (Blue)** | [`AutonomieBlue.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieBlue.java) |
-| **Main Auto (Red)** | [`AutonomieRed.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieRed.java) |
+| **Main Auto (Blue Far)** | [`AutoFarBlueHuman.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutoFarBlueHuman.java) |
+| **Main Auto (Red Far)** | [`AutoFarRedHuman.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutoFarRedHuman.java) |
+| **Main Auto (Blue V2)** | [`AutonomieBlueV2.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieBlueV2.java) |
+| **Main Auto (Red V2)** | [`AutonomieRedV2.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/AutonomieRedV2.java) |
 | **Intake Subsystem** | [`IntakeSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/IntakeSubsystem.java) |
 | **Storage Subsystem** | [`StorageSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/StorageSubsystem.java) |
 | **Outtake Subsystem** | [`OuttakeSubsystem.java`](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/OuttakeSubsystem.java) |

@@ -52,7 +52,6 @@ public class OuttakeSubsystem {
     private static boolean hasBeenReset = false;
 
     private double turretTargetAngleDeg = 0;
-    public int TARGET_TAG_ID = 999; // bypass husky for now
     private boolean isHuskyLock = false;
     private boolean autoAimEnabled = false;
 
@@ -200,10 +199,6 @@ public class OuttakeSubsystem {
         shootMotorEnabled = false;
     }
 
-    public void ToggleShootMotorAuto() {
-        shootMotorEnabled = !shootMotorEnabled;
-    }
-
     public void SetShootMotorPower(double power) {
         // Legacy shim: accepts 0.0-1.0 ratio, converts to velocity
         targetVelocity = power * MAX_VELOCITY;
@@ -225,16 +220,6 @@ public class OuttakeSubsystem {
 
     public double getManualVelocityOffset() {
         return manualVelocityOffset;
-    }
-
-    /** @deprecated Use getManualVelocityOffset() */
-    public double getManualPowerOffset() {
-        return manualVelocityOffset / MAX_VELOCITY;
-    }
-
-    /** @deprecated Use setManualVelocityOffset() */
-    public void setManualPowerOffset(double offset) {
-        this.manualVelocityOffset = offset * MAX_VELOCITY;
     }
 
     // Kept for backward compat
@@ -277,16 +262,8 @@ public class OuttakeSubsystem {
                 && (currentVelocity >= targetVelocity * 0.90 && currentVelocity <= targetVelocity * 1.1);
     }
 
-    public void AutoAngle() {
-        outtakeAngle.setPosition(0.7);
-    }
-
     public void SetAngle(double angle) {
         outtakeAngle.setPosition(angle);
-    }
-
-    public HuskyLens.Block[] GetCameraFeed() {
-        return hLens.blocks();
     }
 
     public void updateTurretLock(Pose robotPose, Pose targetPose, double manualOffset) {

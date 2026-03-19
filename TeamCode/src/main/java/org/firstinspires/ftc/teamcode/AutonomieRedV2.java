@@ -37,17 +37,9 @@ public class AutonomieRedV2 extends OpMode {
     private double lastTime = 0;
     private double loopTime;
     private double telemetryTimer = 0;
-    private double manualTurretOffset = -3;
+    private double manualTurretOffset = Math.toRadians(-3);
     private boolean turretLockEnabled = true;
     private final double PATH_TIMEOUT = 5.0;
-
-    // --- STUCK FAILSAFE VARIABLES ---
-    private final ElapsedTime stuckTimer = new ElapsedTime();
-    private Pose lastFailsafePose = new Pose(0, 0, 0);
-    private double lastDistToTarget = 0.0;
-    private boolean isRecovering = false;
-    private final double STUCK_THRESHOLD_INCHES = 0.5;
-    private final double STUCK_CHECK_INTERVAL_MS = 250;
 
     // Pose Constants
     private final Pose startPose = FieldPoses.START.mirror();
@@ -66,7 +58,6 @@ public class AutonomieRedV2 extends OpMode {
     private final Pose pickup2 = FieldPoses.PICKUP_2.mirror();
     private final Pose getPick2 = FieldPoses.GET_PICK_2.mirror();
     private final Pose swing = new Pose(65, 65).mirror();
-    // private final Pose getPick2Back = FieldPoses.GET_PICK_2_BACK;
 
     // Pickup 3
     private final Pose pickup3 = FieldPoses.PICKUP_3.mirror();
@@ -143,8 +134,7 @@ public class AutonomieRedV2 extends OpMode {
     }
 
     public void autonomousPathUpdate(boolean isBusy, Pose currentPose) {
-        // Global Guard: Only allow the shooting variable to reset when homing is 100%
-        // finished
+        // Global Guard: Only allow the shooting variable to reset when homing is 100% finished
         if (storageSubsystem.isIdle()) {
             shootingStarted = false;
         }
@@ -188,7 +178,6 @@ public class AutonomieRedV2 extends OpMode {
                     follower.followPath(path7, true);
                     setPathState(5);
                 }
-                // storageSubsystem.MoveRelative(475, 1);
                 break;
             case 5: // ARRIVED Score
                 if (pathTimer.getElapsedTimeSeconds() > 0.5) {
@@ -200,12 +189,12 @@ public class AutonomieRedV2 extends OpMode {
                 break;
             case 6: // SHOOTING 1
                 if (!isBusy) {
-                    // intakeSubsystem.setPower(0);
                     if (!shootingStarted && storageSubsystem.isIdle()) {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
                     }
                     if (storageSubsystem.isDoneShooting()) {
+                        follower.setMaxPower(0.9);
                         follower.followPath(path8); // Align to Cycle P1
                         intakeSubsystem.setPower(1);
                         setPathState(7);
@@ -215,13 +204,14 @@ public class AutonomieRedV2 extends OpMode {
             // ================= CYCLE SEQUENCE =================
             case 7: // Finish Cycle Alignment
                 if (!isBusy) {
+                    follower.setMaxPower(1);
                     follower.followPath(path8_2); // Align to Cycle P2
                     setPathState(8);
                 }
                 break;
             case 8: // Wait for fragments and return
                 if ((!isBusy && storageSubsystem.isIdle()) || timedOut) {
-                    if (pathTimer.getElapsedTimeSeconds() > 1.5) {
+                    if (pathTimer.getElapsedTimeSeconds() > 1) {
                         follower.followPath(path9);
                         setPathState(9);
                     }
@@ -239,14 +229,8 @@ public class AutonomieRedV2 extends OpMode {
                         shootingStarted = true;
                     }
                     if (storageSubsystem.isDoneShooting()) {
-                        // if (matchTimer.seconds() > 20) {
                         follower.followPath(path2);
                         setPathState(10);
-                        // } else {
-                        // follower.followPath(path8); // Loop back to start alignment
-                        // intakeSubsystem.setPower(1);
-                        // setPathState(7);
-                        // }
                     }
                 }
                 break;
@@ -268,7 +252,6 @@ public class AutonomieRedV2 extends OpMode {
                     intakeSubsystem.setPower(-1);
                 }
                 if (!isBusy) {
-                    // intakeSubsystem.setPower(0);
                     if (!shootingStarted && storageSubsystem.isIdle()) {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
@@ -362,72 +345,14 @@ public class AutonomieRedV2 extends OpMode {
         boolean isBusy = follower.isBusy();
         Pose currentPose = follower.getPose();
 
-        // // --- GLOBAL STUCK FAILSAFE (Improved for Slippage) ---
-
-        // // 1. Current distance to the goal
-        // Pose target = follower.getPose();
-        // double currentDistToTarget = Math.hypot(
-        // target.getX() - currentPose.getX(),
-        // target.getY() - currentPose.getY());
-
-        // // 2. The "Hold Point" Safety Check
-        // boolean isActuallyMovingToTarget = follower.isBusy() && currentDistToTarget >
-        // 1.2;
-
-        // if (isActuallyMovingToTarget && !isRecovering) {
-        // if (stuckTimer.milliseconds() > STUCK_CHECK_INTERVAL_MS) {
-
-        // // CHECK: How much did our progress toward the target improve?
-        // // Positive value = we got closer. Negative = we drifted away.
-        // double progressMade = lastDistToTarget - currentDistToTarget;
-
-        // // NEW THRESHOLD: If we haven't closed the gap by at least 0.25 inches
-        // if (progressMade < STUCK_THRESHOLD_INCHES) {
-        // isRecovering = true;
-        // actionTimer.resetTimer();
-        // follower.breakFollowing();
-        // }
-
-        // // Update tracking variables for the next interval
-        // lastDistToTarget = currentDistToTarget;
-        // stuckTimer.reset();
-        // }
-        // } else {
-        // // If we aren't "busy" or are within the 1.2" deadzone,
-        // // keep the progress tracker synced so it doesn't "jump" when a new path
-        // starts.
-        // lastDistToTarget = currentDistToTarget;
-        // }
-
-        // if (isRecovering) {
-        // if (actionTimer.getElapsedTimeSeconds() < 0.5) {
-        // // Use the 'target' variable declared at the top
-        // double angleToTarget = Math.atan2(target.getY() - currentPose.getY(),
-        // target.getX() - currentPose.getX());
-
-        // double escapeAngle = angleToTarget + Math.PI;
-        // double escapeX = Math.cos(escapeAngle) * 0.5;
-        // double escapeY = Math.sin(escapeAngle) * 0.5;
-
-        // follower.setTeleOpDrive(escapeX, escapeY, 0.0, false, 0.0);
-        // } else {
-        // follower.setTeleOpDrive(0.0, 0.0, 0.0, false, 0.0);
-        // isRecovering = false;
-        // stuckTimer.reset();
-        // retriggerCurrentPath();
-        // }
-        // } else {
-        // // Only update the path follower if we aren't nudging
-        // follower.update();
-        // }
-
         follower.update();
         storageSubsystem.update();
         outtakeSubsystem.update();
 
-        // Centralized Dynamic Aim (Power & Angle) — always active
+        // Centralized Dynamic Aim (Power & Angle) â€” always active
         double deltaX = targetPose.getX() - currentPose.getX();
         double deltaY = targetPose.getY() - currentPose.getY();
+        // Dynamic shooter velocity & bucket angle (based on robot distance to bucket)
         outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
         outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
 
@@ -435,7 +360,7 @@ public class AutonomieRedV2 extends OpMode {
             outtakeSubsystem.updateTurretLock(currentPose, targetPose, manualTurretOffset);
         }
 
-        // --- 30s FAILSAFE GUARDIAN ---
+        // Global Match Guardian: Shuts down everything at 29.7s to prevent DQ and save pose
         if (matchTimer.seconds() > 29.7) {
             follower.breakFollowing();
             follower.setMaxPower(0);
@@ -448,13 +373,6 @@ public class AutonomieRedV2 extends OpMode {
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseRed = currentPose;
 
-        /*
-         * if (storageSubsystem.recoveryState ==
-         * StorageSubsystem.RecoveryState.WAITING_FOR_RETRY
-         * || storageSubsystem.recoveryState ==
-         * StorageSubsystem.RecoveryState.RETURNING)
-         * intakeSubsystem.setPower(1);
-         */
         if (currentTime > telemetryTimer + 100) {
             // --- AUTO STATUS ---
             telemetry.addData("Loop Time", "%.2f ms", loopTime);
@@ -473,22 +391,9 @@ public class AutonomieRedV2 extends OpMode {
             telemetry.update();
             telemetryTimer = currentTime;
         }
-
-        telemetry.update();
     }
 
     @Override
     public void stop() {
-        // PoseStorage.autoPoseBlue = follower.getPose();
-    }
-
-    private void retriggerCurrentPath() {
-        // 1. Refresh path definitions to ensure everything is up to date
-        buildPaths();
-
-        // 2. Simply 'reset' the current state.
-        // This re-enters the current case in autonomousPathUpdate()
-        // and re-triggers the followPath() command.
-        setPathState(pathState);
     }
 }

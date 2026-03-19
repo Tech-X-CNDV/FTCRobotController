@@ -16,47 +16,54 @@ The main TeleOp program handles driver input and coordinates subsystems.
 - **Right Trigger**: Intake power.
 - **Y Button**: Toggle **Reverse Intake**.
 - **A Button**: Automated **Drive to Score Pose**.
-- **X Button**: Toggle **Chassis Tag-Lock & Auto-Aim** (Synced rotation and flywheel power).
-- **Left Trigger**: Conveyor move relative (475 ticks).
+- **X Button**: Toggle **Chassis Tag-Lock & Auto-Aim** (Synced rotation towards High Basket).
+- **B Button**: Toggle **Small Basket Lock** (Locks orientation towards Low Basket).
+- **Left Trigger**: Reset Storage to intake position (Home).
+- **Start Button**: Emergency Field-Centric Reset.
 - **DPad Up**: Force set pattern to default.
 
 ### Controller 2 (Outtake & Storage)
-- **A Button**: Toggle Shoot Motor.
-- **X Button**: Auto-Throw sequence (clears storage).
-- **Y Button**: Toggle **Turret Lock & Auto-Aim Flywheel** (Vision tracking).
-- **B Button**: Start **Auto-Sort** (if pattern detected).
-- **DPad Up**: Manual conveyor move (475 ticks).
-- **DPad Down**: Reset Storage (if stuck).
-- **DPad Right**: Toggle Outtake Servo position.
-- **Left Trigger + Right Stick X**: Manual conveyor control (overrides auto).
+- **A Button**: Reset Storage to intake position (Home).
+- **X Button**: Start automated **Shooting sequence**.
+- **B Button**: Toggle **Shoot Motor** (Flywheel).
+- **Y Button**: Toggle **Turret Lock & Auto-Aim** (Vision/Pose tracking).
+- **Right Trigger**: Toggle Storage Gate manually.
+- **Left Trigger + Left Stick X**: Manual storage/conveyor movement (overrides auto).
+- **Left Stick Y**: Manual Shooter Velocity Offset (Adjusts current target power).
 - **Left/Right Bumpers**: Manual Outtake Angle adjustment.
 
 ---
 
-## 2. Autonomous: `AutonomieBlue.java` & `AutonomieRed.java`
+## 2. Autonomous: Competition Routines
 
-These OpModes use a state machine and **PedroPathing** for precise movement.
+The project features several autonomous routines tailored for different field positions and scoring strategies.
 
-### State Machine Overview
-1.  **State 0-1**: Score Preload.
-2.  **State 2-6**: Alignment, pickup, and score Sequence 1.
-3.  **State 7-10**: Alignment, pickup, and score Sequence 2.
-4.  **State 11-14**: Alignment, pickup, and score Sequence 3 (Main OpModes only).
-5.  **State 15**: Park in designated zone.
+### Primary Routines (`AutoFarBlueHuman.java` & `AutoFarRedHuman.java`)
+These are the most refined routines, focusing on scoring a preload, picking up from the human player station, and cycling back to score.
+- **Execution Flow**: 
+    1. Score Preload shot.
+    2. Drive to Spike Mark/Human station to pick up balls.
+    3. Return to scoring position and auto-score.
+    4. Repeat cycling if time allows.
+    5. Park in the designated zone before the 30s limit.
+
+### Legacy Routines (`AutonomieBlue.java` & `AutonomieRed.java`)
+Original routines using a state-based approach for specific pickup sequences (Pickup 1, 2, 3).
 
 ### Features
-- **Loop Caching**: Optimized performance by caching follower status (isBusy, getPose).
-- **Pose Handoff**: At the end of autonomous (`stop()`), the robot's position is saved to `PoseStorage`. This allows the TeleOp to start with the correct heading and coordinates automatically.
+- **Dynamic Aiming**: Automatically calculates distances to the goal (LOCK_POSE) to adjust flywheel velocity and outtake angle mid-flight.
+- **Pose Handoff**: At the end of autonomous, the final coordinates and heading are saved to `PoseStorage`. This ensures that TeleOp (`OPMode.java`) starts with a correctly calibrated field-centric orientation.
+- **Safety Loops**: Includes a 29.7s failsafe that stops all motors and handles pose handoff before the robot is disabled by the field management system.
 
 ---
 
 ## 3. Key Subsystems
-- **Storage**: Features an auto-jam detection (Watchdog) and recovery system.
-- **Outtake**: 
-    - **Turret**: ±90° limits and AprilTag tracking.
-    - **Smart Flywheel**: Continuous voltage compensation (13.2V baseline) and distance-adaptive power via HuskyLens.
-    - **Chassis Lock**: Automated robot orientation toward target tags during TeleOp.
-- **Intake**: Simple motorized intake with reverse capability.
+- **Storage Subsystem**: Unified state machine that handles Homing (magnetic sensor), Shooting sequences (recoil/nudge), and manual overrides.
+- **Outtake Subsystem**: 
+    - **Turret Control**: Precise positioning using a PID loop and Through-Bore encoder (Through PedroPathing pose logic).
+    - **Smart Flywheel**: Dual-motor flywheel with PIDF control for consistent velocity regardless of battery voltage.
+    - **Angle Control**: Adaptive servo positioning for variable-distance shots.
+- **Intake Subsystem**: Motorized intake with active clearing.
 
 ## 4. Calibration Constants
 - **Turret Tracking**: `TICKS_PER_DEGREE` (in `OuttakeSubsystem.java`) - Adjust for turret precision.

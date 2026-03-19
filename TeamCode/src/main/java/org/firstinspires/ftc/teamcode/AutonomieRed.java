@@ -38,13 +38,6 @@ public class AutonomieRed extends OpMode {
     private double loopTime;
     private double telemetryTimer = 0;
 
-    // --- STUCK FAILSAFE VARIABLES ---
-    private final ElapsedTime stuckTimer = new ElapsedTime();
-    private Pose lastFailsafePose = new Pose(0, 0, 0);
-    private double lastDistToTarget = 0.0;
-    private boolean isRecovering = false;
-    private final double STUCK_THRESHOLD_INCHES = 0.5;
-    private final double STUCK_CHECK_INTERVAL_MS = 250;
 
     // Pose Constants
     private final Pose startPose = FieldPoses.START.mirror();
@@ -378,64 +371,6 @@ public class AutonomieRed extends OpMode {
         boolean isBusy = follower.isBusy();
         Pose currentPose = follower.getPose();
 
-        // // --- GLOBAL STUCK FAILSAFE (Improved for Slippage) ---
-
-        // // 1. Current distance to the goal
-        // Pose target = follower.getPose();
-        // double currentDistToTarget = Math.hypot(
-        // target.getX() - currentPose.getX(),
-        // target.getY() - currentPose.getY());
-
-        // // 2. The "Hold Point" Safety Check
-        // boolean isActuallyMovingToTarget = follower.isBusy() && currentDistToTarget >
-        // 1.2;
-
-        // if (isActuallyMovingToTarget && !isRecovering) {
-        // if (stuckTimer.milliseconds() > STUCK_CHECK_INTERVAL_MS) {
-
-        // // CHECK: How much did our progress toward the target improve?
-        // // Positive value = we got closer. Negative = we drifted away.
-        // double progressMade = lastDistToTarget - currentDistToTarget;
-
-        // // NEW THRESHOLD: If we haven't closed the gap by at least 0.25 inches
-        // if (progressMade < STUCK_THRESHOLD_INCHES) {
-        // isRecovering = true;
-        // actionTimer.resetTimer();
-        // follower.breakFollowing();
-        // }
-
-        // // Update tracking variables for the next interval
-        // lastDistToTarget = currentDistToTarget;
-        // stuckTimer.reset();
-        // }
-        // } else {
-        // // If we aren't "busy" or are within the 1.2" deadzone,
-        // // keep the progress tracker synced so it doesn't "jump" when a new path
-        // starts.
-        // lastDistToTarget = currentDistToTarget;
-        // }
-
-        // if (isRecovering) {
-        // if (actionTimer.getElapsedTimeSeconds() < 0.5) {
-        // // Use the 'target' variable declared at the top
-        // double angleToTarget = Math.atan2(target.getY() - currentPose.getY(),
-        // target.getX() - currentPose.getX());
-
-        // double escapeAngle = angleToTarget + Math.PI;
-        // double escapeX = Math.cos(escapeAngle) * 0.5;
-        // double escapeY = Math.sin(escapeAngle) * 0.5;
-
-        // follower.setTeleOpDrive(escapeX, escapeY, 0.0, false, 0.0);
-        // } else {
-        // follower.setTeleOpDrive(0.0, 0.0, 0.0, false, 0.0);
-        // isRecovering = false;
-        // stuckTimer.reset();
-        // retriggerCurrentPath();
-        // }
-        // } else {
-        // // Only update the path follower if we aren't nudging
-        // follower.update();
-        // }
 
         follower.update();
         storageSubsystem.update();
@@ -460,13 +395,6 @@ public class AutonomieRed extends OpMode {
         autonomousPathUpdate(isBusy, currentPose);
         PoseStorage.autoPoseRed = currentPose;
 
-        /*
-         * if (storageSubsystem.recoveryState ==
-         * StorageSubsystem.RecoveryState.WAITING_FOR_RETRY
-         * || storageSubsystem.recoveryState ==
-         * StorageSubsystem.RecoveryState.RETURNING)
-         * intakeSubsystem.setPower(1);
-         */
         if (currentTime > telemetryTimer + 100) {
             // --- AUTO STATUS ---
             telemetry.addData("Loop Time", "%.2f ms", loopTime);
@@ -491,7 +419,6 @@ public class AutonomieRed extends OpMode {
 
     @Override
     public void stop() {
-        // PoseStorage.autoPoseBlue = follower.getPose();
     }
 
     private void retriggerCurrentPath() {

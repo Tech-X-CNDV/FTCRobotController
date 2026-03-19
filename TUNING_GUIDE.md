@@ -38,19 +38,18 @@ The system uses a **Dual-F Model** to account for non-linear friction:
 
 ### STEP C: Dynamic Distance Integration
 In matches, the robot automatically calculates:
-`Target Velocity = (MIN_SHOOT_POWER + (Dist * SCALING)) * MAX_VELOCITY`
+`Target Velocity = MIN_SHOOT_VELOCITY + (Distance * VELOCITY_DISTANCE_SCALING) + manualVelocityOffset`
 
 | Variable | Description | Value |
 | :--- | :--- | :--- |
-| `POWER_DISTANCE_SCALING`| Velocity boost per inch. | Increase if shots fall short only at long range. |
-| `MIN_SHOOT_POWER` | Baseline velocity ratio. | The "Minimum" percentage of MAX_VELOCITY needed to score. |
-
+| `VELOCITY_DISTANCE_SCALING`| Velocity boost per cm. | Increase if shots fall short only at long range. |
+| `MIN_SHOOT_VELOCITY` | Baseline velocity (ticks/sec). | The speed needed to score from the closest point. |
 
 ### Dynamic Launcher Angle
 | Variable | Description | Value |
 | :--- | :--- | :--- |
-| `CLOSE_DIST` / `FAR_DIST` | Distance thresholds (inches). | Default: 30" to 65". |
-| `CLOSE_ANGLE` / `FAR_ANGLE` | Servo positions at thresholds. | Default: 0.5 (Close) to 0.9 (Far). |
+| `CLOSE_DIST` / `FAR_DIST` | Distance thresholds (cm). | Default: 30 to 65. |
+| `CLOSE_ANGLE` / `FAR_ANGLE` | Servo positions at thresholds. | Default: 0.15 (Close) to 0.8 (Far). |
 
 > **Note**: Launcher angle uses a linear ramp between these points. If the ball hits the top of the basket, DECREASE the angle value.
 
@@ -61,10 +60,9 @@ In matches, the robot automatically calculates:
 
 | Variable | Description | Tuning Tips |
 | :--- | :--- | :--- |
-| `autoTurnPower` multiplier | The gain for rotation (currently `1.2`). | **Increase** (e.g. 2.0) if the robot spins too slowly. **Lower** if it overshoots. |
-| Persistence (100ms) | Hardcoded timeout for tag loss. | Prevents robot "jerking" when the camera feed blocks or the tag is hidden. |
+| `autoTurnPower` multiplier | The gain for rotation (currently `1.0`). | **Increase** (e.g. 1.5) if the robot spins too slowly. **Lower** if it overshoots. |
 
-> **Normalization**: The robot automatically takes the shortest turn path (Angle Normalization). If the robot spins in circles, check the IMU/Heading sensor.
+> **Normalization**: The robot automatically takes the shortest turn path (Angle Normalization). If the robot spins in circles, check the IMU/Heading sensor and `PoseStorage.allianceOffset`.
 
 ---
 
@@ -73,22 +71,34 @@ In matches, the robot automatically calculates:
 
 | Variable | Description | Tuning Tips |
 | :--- | :--- | :--- |
-| `TICKS_PER_DEGREE` | Turret encoder ratio. | If the turret turns 10° but stops at 12°, decrease this value. |
-| `MAX_TURRET_ANGLE_DEG`| Safety limit for turret rotation. | Set this to prevent the turret from hitting your chassis or pulling wires. |
-| `HUSKYLENS_FOV_DEG` | The camera's field of view. | Default 60.0. Adjust if the tag isn't centered when the error says 0. |
+| `TURRET_GEAR_RATIO` | Gear reduction for turret. | Ratio between the servo shaft (with encoder) and the turret. TUNE THIS if angle is off. |
+| `TURRET_LIMIT_LEFT/RIGHT`| Safety limits for turret rotation. | Set this to prevent the turret from hitting your chassis or pulling wires. |
+| `HUSKYLENS_FOV_DEG` | The camera's field of view. | Default 60.0. Adjust if the tag isn't centered when using visual tracking. |
 | `INITIAL_ANGLE` | Starting position of the outtake bucket. | Default 0.9. Adjust to set the default "rest" or "ready" angle. |
 
 ---
 
-## 4. Storage (RETIRED)
-**Note**: The storage subsystem is currently disabled in the code. Section 4 is preserved for legacy reference but does not affect the robot's current operation.
+## 4. Storage Subsystem (Unified State Machine)
+**File**: [StorageSubsystem.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/StorageSubsystem.java)
+
+The storage system manages the conveyor and gate using a precise state machine and a magnetic homing sensor.
+
+### Homing Sequence
+1. **HOMING_FAST**: Moves forward until the `MagneticSensor` is triggered.
+2. **HOMING_BACKOFF**: Nudges away from the sensor to clear the signal.
+3. **HOMING_SLOW**: Precision approach to the sensor for the final zero.
+
+### Shooting Cycle
+- **RECOILING**: Pulls back to clear any jammed balls.
+- **NUDGING**: Briefly nudges forward to prepare for the shot.
+- **SHOOTING**: Rapidly accelerates the conveyor to feed the flywheel.
 
 ---
 
 ## 5. Hybrid Turret PID Control
 **File**: [OuttakeSubsystem.java](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/config/subsystem/OuttakeSubsystem.java)
 
-The turret now uses a custom PIDF (Proportional-Integral-Derivative + Feedforward) controller for high-speed tracking.
+The turret uses a custom PIDF (Proportional-Integral-Derivative + Feedforward) controller for precise tracking.
 
 ### PID Constants
 | Variable | Description | Tuning Tips |
@@ -96,19 +106,16 @@ The turret now uses a custom PIDF (Proportional-Integral-Derivative + Feedforwar
 | `turretP` | Proportional Gain (Main speed). | **Increase** until the turret oscillates, then lower by 20%. |
 | `turretI` | Integral Gain (Correction). | **Increase** if the turret stops slightly before its target. Too much causes overshooting. |
 | `turretD` | Derivative Gain (Damping). | **Increase** to stop the turret from "bouncing" or vibrating at the target. |
-| `turretF` | Feedforward (Static Friction). | The minimal power needed to start the turret moving. Adjust until the turret doesn't "get stuck" on tiny errors. |
-
-### How the Hybrid System Works
-1. **HuskyLock (Priority)**: If the HuskyLens sees the target AprilTag, it calculates the visual error (pixels from center) and maps it directly to a turret angle adjustment. This is extremely precise and ignores drive-drift.
-2. **PoseLock (Fallback)**: If the tag is hidden, the system calculates the angle to the basket using the robot's current X,Y coordinates. This is less precise but keeps the turret pointed in the right direction.
+| `turretF` | Feedforward (Static Friction). | The minimal power needed to start the turret moving. |
 
 ### The Custom PID Logic Explained
-The `updateTurretPID()` function runs every ~10ms. It works as follows:
+The `updateTurretPID()` function runs every loop (~10ms). It works as follows:
 
-1. **Error Calculation**: `error = targetPosition - currentPosition`. This is the distance we need to move.
-2. **P (Proportional)**: Multiplies the error. Big error = fast move; Small error = slow move.
-3. **I (Integral)**: Accumulates error over time (`integralSum += error * dt`). This "forces" the turret to move the last few ticks if physics (like friction) stops it early.
-    - *Anti-Windup*: The code caps this sum to prevent the turret from spinning wildly if it's held by hand.
-4. **D (Derivative)**: Measures how fast the error is changing (`(error - lastError) / dt`). It acts like a "brake" to slow down the turret as it approaches the target.
-5. **F (Feedforward)**: Adds a small constant power in the direction of the error to overcome static friction of the gears.
-6. **Safety**: If the error is less than 2 ticks, the turret stops and clears the integral sum to prevent "jittering" at rest.
+1. **Error Calculation**: `error = targetPosition - currentPosition`.
+2. **P (Proportional)**: Multiplies the error. Big error = fast move.
+3. **I (Integral)**: Accumulates error over time (`integralSum += error * dt`). This "forces" the turret to move the last few ticks if friction stops it early.
+   - *Anti-Windup*: The code caps this sum to prevent the turret from spinning wildly.
+4. **D (Derivative)**: Measures how fast the error is changing. It acts like a "brake" to slow down as it approaches the target.
+   - *LPF*: A Low-Pass Filter (`turretD_LPF`) is applied to smooth out sensor noise.
+5. **F (Feedforward)**: Adds a small constant power in the direction of the error to overcome static friction.
+6. **Limit Enforcement**: `setTurretTargetAngle()` automatically handles 360° roll-overs and hard software limits.
