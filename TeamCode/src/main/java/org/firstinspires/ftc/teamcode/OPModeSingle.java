@@ -24,8 +24,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import java.util.List;
 
 @Configurable
-@TeleOp
-public class OPMode extends OpMode {
+@TeleOp(name = "OPMode Single Gamepad", group = "TeleOp")
+public class OPModeSingle extends OpMode {
     private Follower follower;
     private boolean automatedDrive;
     private TelemetryManager telemetryM;
@@ -54,7 +54,6 @@ public class OPMode extends OpMode {
     private List<LynxModule> allHubs;
 
     public void driveToPose(Pose targetPose) {
-        // Build the path using CURRENT position at this exact millisecond
         PathChain dynamicPath = follower.pathBuilder()
                 .addPath(new BezierLine(follower.getPose(), targetPose))
                 .setLinearHeadingInterpolation(follower.getPose().getHeading(), targetPose.getHeading())
@@ -85,9 +84,7 @@ public class OPMode extends OpMode {
         storageSubsystem = new StorageSubsystem(hardwareMap, outtakeSubsystem);
         storageSubsystem.InitStorage();
 
-        telemetry.addData("Status", "Initialized");
-
-        // TeleOp telemetry
+        telemetry.addData("Status", "Initialized (Single Gamepad Mode)");
         telemetry.update();
     }
 
@@ -103,15 +100,10 @@ public class OPMode extends OpMode {
 
     @Override
     public void start() {
-        // The parameter controls whether the Follower should use break mode on the
-        // motors (using it is recommended).
-        // In order to use float mode, add .useBrakeModeInTeleOp(true); to your
-        // Drivetrain Constants in Constant.java (for Mecanum)
-        // If you don't pass anything in, it uses the default (false)
         follower.startTeleopDrive(true);
         targetPose = PoseStorage.isRed ? LOCK_POSE.mirror() : LOCK_POSE;
         outtakeSubsystem.SetAngle(0.15); // Safe compact starting position (avoids mechanical bottoming/binding)
-        outtakeSubsystem.resetTurret(); // Center turret on START instead of INIT
+        outtakeSubsystem.resetTurret();
         outtakeSubsystem.StartShootMotor();
         outtakeSubsystem.setTargetVelocity(OuttakeSubsystem.IDLE_SHOOT_VELOCITY);
         storageSubsystem.ResetToIntake(true);
@@ -119,10 +111,8 @@ public class OPMode extends OpMode {
 
     private ElapsedTime timer = new ElapsedTime();
     private double lastTime = 0;
-    private boolean manual = false;
     boolean reverseIntake = false;
     double loopTime;
-
     private double telemetryTimer = 0;
 
     @Override
@@ -138,15 +128,12 @@ public class OPMode extends OpMode {
         loopTime = currentTime - lastTime;
         lastTime = currentTime;
 
-        // Call Updates once per loop
         follower.update();
         storageSubsystem.update();
         outtakeSubsystem.update();
         telemetryM.update();
 
-        // Handle Inputs
-        handleDriverControls();
-        handleOperatorControls();
+        handleControls();
 
         if (turretLockEnabled)
             outtakeSubsystem.updateTurretLock(follower.getPose(), targetPose, manualTurretOffset);
@@ -157,63 +144,145 @@ public class OPMode extends OpMode {
         }
     }
 
-    private void handleDriverControls() {
-        // 1. INPUT GATHERING
+    private void handleControls() {
+        // 1. DRIVING INPUTS
         double drive = -gamepad1.left_stick_y;
         double strafe = -gamepad1.left_stick_x;
         double turn = -gamepad1.right_stick_x;
 
-        // 2. FEATURE TOGGLES & RESET LOGIC
-        if (gamepad1.rightBumperWasPressed())
-            slowMode = !slowMode;
-        if (gamepad1.yWasPressed())
-            reverseIntake = !reverseIntake;
+        // 2. MODIFIER (Shift Key) - Using Back Button for manual overrides
+        boolean isShift = gamepad1.back; 
+
+        // 3. TOGGLES & AUTOMATION
+        
+        // Slow Mode Toggle (L3 - Left Stick Button)
+        if (gamepad1.leftStickButtonWasPressed()) slowMode = !slowMode;
+        
+        // Field Centric Reset (R3 - Right Stick Button)
+        if (gamepad1.rightStickButtonWasPressed()) {
+            Pose currentPose = follower.getPose();
+            follower.setPose(new Pose(currentPose.getX(), currentPose.getY(), PoseStorage.allianceOffset));
+            gamepad1.rumbleBlips(2);
+        }
+
+        // Intake Reverse Toggle (Y)
+        if (gamepad1.yWasPressed()) reverseIntake = !reverseIntake;
+
+        // Drive to Pose (A)
         if (gamepad1.aWasPressed() && !automatedDrive)
             driveToPose(PoseStorage.isRed ? SCORE_POSE_RED : SCORE_POSE_BLUE);
 
-        // CHASSIS LOCK TOGGLE
-        if (gamepad1.xWasPressed()) {
+        // LOCKS (Using D-Pad)
+        
+        // Chassis Lock Toggle (D-Pad Left)
+        if (gamepad1.dpadLeftWasPressed()) {
             chassisLockEnabled = !chassisLockEnabled;
-            if (chassisLockEnabled)
-                smallBasketLockEnabled = false;
+            if (chassisLockEnabled) smallBasketLockEnabled = false;
             outtakeSubsystem.SetAutoAim(chassisLockEnabled || smallBasketLockEnabled);
 
             if (chassisLockEnabled) {
                 targetPose = PoseStorage.isRed ? LOCK_POSE.mirror() : LOCK_POSE;
-                gamepad1.rumble(300); // 300ms vibration to confirm lock-on
+                gamepad1.rumble(300);
             } else if (!smallBasketLockEnabled) {
-                // SYNC HEADING on release to prevent the "Joystick Jump" when switching from auto-rot to manual
                 Pose current = follower.getPose();
                 follower.setPose(new Pose(current.getX(), current.getY(), current.getHeading()));
             }
         }
 
-        // SMALL BASKET LOCK TOGGLE
-        if (gamepad1.bWasPressed()) {
+        // Small Basket Lock Toggle (D-Pad Right)
+        if (gamepad1.dpadRightWasPressed()) {
             smallBasketLockEnabled = !smallBasketLockEnabled;
-            if (smallBasketLockEnabled)
-                chassisLockEnabled = false;
+            if (smallBasketLockEnabled) chassisLockEnabled = false;
             outtakeSubsystem.SetAutoAim(chassisLockEnabled || smallBasketLockEnabled);
 
             if (smallBasketLockEnabled) {
                 targetPose = PoseStorage.isRed ? LOW_BASKET_POSE.mirror() : LOW_BASKET_POSE;
-                gamepad1.rumble(300); // 300ms vibration to confirm lock-on
+                gamepad1.rumble(300);
             } else if (!chassisLockEnabled) {
-                // SYNC HEADING on release to prevent the "Joystick Jump" when switching from auto-rot to manual
                 Pose current = follower.getPose();
                 follower.setPose(new Pose(current.getX(), current.getY(), current.getHeading()));
             }
         }
 
-        // EMERGENCY FIELD-CENTRIC RESET (Start Button)
-        if (gamepad1.startWasPressed()) {
-            Pose currentPose = follower.getPose();
-            follower.setPose(new Pose(currentPose.getX(), currentPose.getY(), PoseStorage.allianceOffset));
-            // Turret encoder reset removed so the turret doesn't lose its physical zero
-            gamepad1.rumbleBlips(2);
+        // Turret Lock Toggle (D-Pad Up)
+        if (gamepad1.dpadUpWasPressed()) {
+            turretLockEnabled = !turretLockEnabled;
+            if (!turretLockEnabled) outtakeSubsystem.resetTurret();
+            else gamepad1.rumble(300);
         }
 
-        // 3. DRIVING & AIM LOGIC
+        // Gate Toggle (D-Pad Down)
+        if (gamepad1.dpadDownWasPressed()) {
+            if (storageSubsystem.isGateOpen()) storageSubsystem.CloseGate();
+            else storageSubsystem.OpenGate();
+        }
+
+        // 4. SHOOTING & STORAGE
+        
+        // Start Shooting Sequence (X)
+        if (gamepad1.xWasPressed()) {
+            outtakeSubsystem.StartShootMotor();
+            storageSubsystem.StartShooting();
+        }
+
+        // Toggle Shoot Motor (B)
+        if (gamepad1.bWasPressed()) {
+            outtakeSubsystem.ToggleShootMotor();
+        }
+
+        // Reset Storage to Intake (LT) or Manual Abort (LT + Stick)
+        if (gamepad1.left_trigger_pressed) {
+            if (Math.abs(gamepad1.left_stick_x) > 0.1) {
+                outtakeSubsystem.SetShootMotorPower(0);
+                storageSubsystem.Abort(gamepad1.left_stick_x);
+            } else {
+                storageSubsystem.ResetToIntake(true);
+            }
+        }
+
+        // Intake Power (Right Trigger)
+        intakeSubsystem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
+
+        // 5. MANUAL ADJUSTMENTS (Bumpers & Shift)
+        
+        // Outtake Servo Angle (Bumpers)
+        if (gamepad1.leftBumperWasReleased()) {
+            if (chassisLockEnabled || smallBasketLockEnabled || turretLockEnabled) outtakeSubsystem.IncreaseAngleOffset();
+            else outtakeSubsystem.IncreaseDirectAngle();
+        } else if (gamepad1.rightBumperWasReleased()) {
+            if (chassisLockEnabled || smallBasketLockEnabled || turretLockEnabled) outtakeSubsystem.DecreaseAngleOffset();
+            else outtakeSubsystem.DecreaseDirectAngle();
+        }
+
+        // Manual Offsets (Using Shift + Sticks)
+        if (isShift) {
+            // Manual storage movement override
+            if (Math.abs(gamepad1.left_stick_x) > 0.1) {
+                outtakeSubsystem.SetShootMotorPower(0);
+                storageSubsystem.Abort(gamepad1.left_stick_x);
+            } else if (storageSubsystem.getState().equals("MANUAL")) {
+                storageSubsystem.Abort(0);
+            }
+            
+            // Manual shooter velocity offset
+            if (Math.abs(gamepad1.left_stick_y) > 0.1) {
+                double currentOffset = outtakeSubsystem.getManualVelocityOffset();
+                outtakeSubsystem.setManualVelocityOffset(currentOffset - (gamepad1.left_stick_y * 5.0));
+            }
+
+            // Manual turret offset
+            if (turretLockEnabled && Math.abs(gamepad1.right_stick_x) > 0.1) {
+                manualTurretOffset -= gamepad1.right_stick_x * 0.01;
+            }
+            
+            // CRITICAL: Disable all driving immediately
+            drive = 0;
+            strafe = 0;
+            turn = 0;
+            follower.setTeleOpDrive(0,0,0); 
+        }
+
+        // 6. DRIVING & AIM LOGIC
         if (!automatedDrive) {
             if (slowMode) {
                 drive *= slowModeMultiplier;
@@ -221,50 +290,36 @@ public class OPMode extends OpMode {
                 turn *= slowModeMultiplier;
             }
 
-            // SHARED DYNAMIC AIM (Triggers for Turret or Chassis Lock)
             if (chassisLockEnabled || smallBasketLockEnabled || turretLockEnabled) {
                 double deltaX = targetPose.getX() - follower.getPose().getX();
                 double deltaY = targetPose.getY() - follower.getPose().getY();
 
                 if (smallBasketLockEnabled) {
                     outtakeSubsystem.updateFixedPower(0.75);
-                    outtakeSubsystem.SetAngle(1);
+                    outtakeSubsystem.SetAngle(Math.max(0, Math.min(1.0, 1.0 + outtakeSubsystem.getManualAngleOffset())));
                 } else {
                     outtakeSubsystem.updateAutoAimPower(deltaX, deltaY);
                     outtakeSubsystem.updateAutoAimAngle(deltaX, deltaY);
                 }
 
-                // Specific Chassis Lock Driving
-                if (chassisLockEnabled || smallBasketLockEnabled) {
+                if ((chassisLockEnabled || smallBasketLockEnabled) && !isShift) {
                     if (Math.abs(gamepad1.right_stick_x) > 0.1) {
-                        manualHeadingOffset -= gamepad1.right_stick_x * 0.015; // Tunable sensitivity
+                        manualHeadingOffset -= gamepad1.right_stick_x * 0.015;
                     }
 
-                    // 5-degree offset added to account for mechanical outtake bias
-                double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
-
-                    // Calculate Heading Error
+                    double angleToScore = Math.atan2(deltaY, deltaX) + Math.toRadians(5) + manualHeadingOffset;
                     double currentHeading = follower.getPose().getHeading();
                     double headingError = angleToScore - currentHeading;
 
-                    // Normalize the error so the robot takes the shortest path
-                    while (headingError > Math.PI)
-                        headingError -= 2 * Math.PI;
-                    while (headingError < -Math.PI)
-                        headingError += 2 * Math.PI;
+                    while (headingError > Math.PI) headingError -= 2 * Math.PI;
+                    while (headingError < -Math.PI) headingError += 2 * Math.PI;
 
-                    // Force the Power (Manual P-Loop)
                     double autoTurnPower = headingError * 1.0;
-
-                    // "POWER STEERING" LOCK:
                     follower.setTeleOpDrive(drive, strafe, autoTurnPower, false, angleToScore);
                 } else {
-                    // Manual Driving but with Dynamic Aim active (Turret Lock is on)
                     follower.setTeleOpDrive(drive, strafe, turn, false, PoseStorage.allianceOffset);
                 }
-
             } else {
-                // STANDARD FIELD-CENTRIC (No Locks Active)
                 follower.setTeleOpDrive(drive, strafe, turn, false, PoseStorage.allianceOffset);
                 if (storageSubsystem.isIdle()) {
                     outtakeSubsystem.setTargetVelocity(OuttakeSubsystem.IDLE_SHOOT_VELOCITY);
@@ -278,18 +333,7 @@ public class OPMode extends OpMode {
             }
         }
 
-        intakeSubsystem.setPower(reverseIntake ? -gamepad1.right_trigger : gamepad1.right_trigger);
-
-        if (gamepad1.left_trigger_pressed) {
-            storageSubsystem.ResetToIntake(true);
-        }
-
-        if (gamepad1.dpadUpWasPressed()) {
-            charPattern = patterns[0].toCharArray();
-            foundPattern = true;
-        }
-
-        // 5. AUTOMATION INTERRUPT (Safety)
+        // 7. AUTOMATION INTERRUPT
         double STICK_THRESHOLD = 0.15;
         boolean driverInput = Math.abs(gamepad1.left_stick_x) > STICK_THRESHOLD ||
                 Math.abs(gamepad1.left_stick_y) > STICK_THRESHOLD ||
@@ -301,101 +345,22 @@ public class OPMode extends OpMode {
         }
     }
 
-    private void handleOperatorControls() {
-        // Storage & Indexing
-        if (gamepad2.xWasPressed()) {
-            outtakeSubsystem.StartShootMotor();
-            storageSubsystem.StartShooting();
-        }
-
-        if (gamepad2.aWasPressed()) {
-            storageSubsystem.ResetToIntake(true);
-        }
-
-        if (gamepad2.bWasPressed()) {
-            outtakeSubsystem.ToggleShootMotor();
-        }
-
-        // Manual Storage Override & Control
-        if (gamepad2.left_trigger_pressed) {
-            outtakeSubsystem.SetShootMotorPower(0);
-            // Use horizontal joystick (X-axis) for manual storage movement
-            storageSubsystem.Abort(gamepad2.left_stick_x);
-        } else {
-            if (turretLockEnabled && Math.abs(gamepad2.right_stick_x) > 0.1) {
-                manualTurretOffset -= gamepad2.right_stick_x * 0.01; // Tunable sensitivity
-            }
-
-            // Manual Shooter Velocity Offset (Persistent, +/- ticks/sec)
-            // DISABLED while manual storage is active
-            if (Math.abs(gamepad2.left_stick_y) > 0.1) {
-                double currentOffset = outtakeSubsystem.getManualVelocityOffset();
-                // Up = Positive Velocity Boost (gamepad Y is reversed)
-                outtakeSubsystem.setManualVelocityOffset(currentOffset - (gamepad2.left_stick_y * 5.0));
-            }
-        }
-
-        if (gamepad2.rightTriggerWasPressed()) {
-            if (storageSubsystem.isGateOpen()) {
-                storageSubsystem.CloseGate();
-            } else {
-                storageSubsystem.OpenGate();
-            }
-        }
-
-        // Outtake & Turret
-        if (gamepad2.yWasPressed()) {
-            turretLockEnabled = !turretLockEnabled;
-            if (!turretLockEnabled)
-                outtakeSubsystem.resetTurret();
-            else
-                gamepad2.rumble(300);
-        }
-        // Outtake Servo Angle
-        if (gamepad2.leftBumperWasReleased()) {
-            if (chassisLockEnabled || smallBasketLockEnabled || turretLockEnabled) {
-                outtakeSubsystem.IncreaseAngleOffset();
-            } else {
-                outtakeSubsystem.IncreaseDirectAngle();
-            }
-        } else if (gamepad2.rightBumperWasReleased()) {
-            if (chassisLockEnabled || smallBasketLockEnabled || turretLockEnabled) {
-                outtakeSubsystem.DecreaseAngleOffset();
-            } else {
-                outtakeSubsystem.DecreaseDirectAngle();
-            }
-        }
-    }
-
     private void displayTelemetry(double loopTime) {
         Pose currentPose = follower.getPose();
-        // --- GAMEPAD 1: DRIVER ---
-        telemetry.addLine("=== GAMEPAD 1: DRIVER ===");
+        telemetry.addLine("=== SINGLE PILOT CONTROLS ===");
         telemetry.addData("> Drive Mode", slowMode ? "SLOW (x" + slowModeMultiplier + ")" : "NORMAL");
-        telemetry.addData("> Chassis Lock", chassisLockEnabled ? "ACTIVE (Low Basket: OFF)"
-                : (smallBasketLockEnabled ? "ACTIVE (Low Basket: ON)" : "OFF"));
-        telemetry.addData("> Turret Offset", "%.1f°", Math.toDegrees(manualTurretOffset));
-        telemetry.addData("> Turret Angle", "%.1f°", outtakeSubsystem.getTurretAngle());
-        telemetry.addData("> Angle Offset", outtakeSubsystem.getManualAngleOffset());
-        telemetry.addData("> Lock Offset", "%.1f°", Math.toDegrees(manualHeadingOffset));
-        intakeSubsystem.displayTelemetry(telemetry);
-        telemetry.addData("> Drive Pos", "X:%.1f Y:%.1f H:%.1f", currentPose.getX(), currentPose.getY(),
-                Math.toDegrees(currentPose.getHeading()));
-
-        // --- GAMEPAD 2: OPERATOR ---
-        telemetry.addLine("\n=== GAMEPAD 2: OPERATOR ===");
+        telemetry.addData("> Chassis Lock", chassisLockEnabled ? "ACTIVE" : "OFF");
+        telemetry.addData("> Basket Lock", smallBasketLockEnabled ? "ACTIVE" : "OFF");
         telemetry.addData("> Turret Lock", turretLockEnabled ? "ACTIVE" : "OFF");
+        telemetry.addData("> Angle Offset", outtakeSubsystem.getManualAngleOffset());
+        telemetry.addData("> Drive Pos", "X:%.1f Y:%.1f H:%.1f", currentPose.getX(), currentPose.getY(), Math.toDegrees(currentPose.getHeading()));
+        
+        telemetry.addLine("\n=== SUBSYSTEMS ===");
+        intakeSubsystem.displayTelemetry(telemetry);
         outtakeSubsystem.displayTelemetry(telemetry);
-        telemetry.addData("> Velocity Offset", "%.0f t/s (L-Stick Y)", outtakeSubsystem.getManualVelocityOffset());
-        telemetry.addData("> Angle Offset", "%.3f (Bumpers)", outtakeSubsystem.getManualAngleOffset());
-        telemetry.addData("> Turret Offset", "%.1f°", Math.toDegrees(manualTurretOffset));
         storageSubsystem.displayTelemetry(telemetry);
 
-        // --- SENSORS & PATTERNS ---
-        telemetry.addLine("\n=== SENSORS & LOGIC ===");
-        telemetry.addData("Pattern", patterns[lastColorId] + " (ID: " + lastColorId + ")");
-        if (foundPattern)
-            telemetry.addData("Active Char", charPattern);
+        telemetry.addLine("\n=== SYSTEM ===");
         telemetry.addData("Loop Time", loopTime + "ms");
         telemetry.addData("Runtime", "%.1f s", runTime.seconds());
 

@@ -69,7 +69,7 @@ public class AutonomieRedV2 extends OpMode {
 
     // Parking
     private final Pose parkPose = FieldPoses.PARK.mirror();
-    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path8_2, path9, path10, path11;
+    private PathChain path1, path2, path4, path5, path7, path8, path9;
 
     public void buildPaths() {
         // path1: Start to Preload Score
@@ -78,32 +78,10 @@ public class AutonomieRedV2 extends OpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .build();
 
-        // path2: Score to Pickup 1 Alignment
-        path2 = follower.pathBuilder()
-                .addPath(new BezierLine(scorePose, pickup1))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup1.getHeading())
-                .build();
-
-        // path3: Intake Reach 1
-        path3 = follower.pathBuilder()
-                .addPath(new BezierLine(pickup1, getPick1))
-                .setConstantHeadingInterpolation(getPick1.getHeading())
-                .build();
-
-        // path4: Return to Score 1 (Direct)
-        path4 = follower.pathBuilder()
-                .addPath(new BezierLine(getPick1, scoreFinal))
-                .setLinearHeadingInterpolation(getPick1.getHeading(), scoreFinal.getHeading())
-                .build();
-
-        // path5: Score to Pickup 2 Alignment
+        // Combined Pickup 2: Score -> Pickup 2 -> Direct Intake
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, pickup2))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup2.getHeading())
-                .build();
-
-        // path6: Intake Reach 2
-        path6 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup2, getPick2))
                 .setConstantHeadingInterpolation(pickup2.getHeading())
                 .build();
@@ -114,14 +92,10 @@ public class AutonomieRedV2 extends OpMode {
                 .setLinearHeadingInterpolation(getPick2.getHeading(), scorePose.getHeading())
                 .build();
 
-        // path8: Score to Cycle Alignment P1
+        // Combined Cycle: Score -> cyclePoint -> cycle -> cycle2
         path8 = follower.pathBuilder()
                 .addPath(new BezierCurve(scorePose, cyclePoint, cycle))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), cycle.getHeading())
-                .build();
-
-        // path8_2: Score to Cycle Alignment P2
-        path8_2 = follower.pathBuilder()
                 .addPath(new BezierLine(cycle, cycle2))
                 .setLinearHeadingInterpolation(cycle.getHeading(), cycle2.getHeading())
                 .build();
@@ -131,10 +105,25 @@ public class AutonomieRedV2 extends OpMode {
                 .addPath(new BezierCurve(cycle2, cyclePoint, scorePose))
                 .setLinearHeadingInterpolation(cycle2.getHeading(), scorePose.getHeading())
                 .build();
+
+        // Combined Pickup 1: Score -> Pickup 1 -> Direct Intake
+        path2 = follower.pathBuilder()
+                .addPath(new BezierLine(scorePose, pickup1))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup1.getHeading())
+                .addPath(new BezierLine(pickup1, getPick1))
+                .setConstantHeadingInterpolation(getPick1.getHeading())
+                .build();
+
+        // path4: Return to Score 1 (Direct)
+        path4 = follower.pathBuilder()
+                .addPath(new BezierLine(getPick1, scoreFinal))
+                .setLinearHeadingInterpolation(getPick1.getHeading(), scoreFinal.getHeading())
+                .build();
     }
 
     public void autonomousPathUpdate(boolean isBusy, Pose currentPose) {
-        // Global Guard: Only allow the shooting variable to reset when homing is 100% finished
+        // Global Guard: Only allow the shooting variable to reset when homing is 100%
+        // finished
         if (storageSubsystem.isIdle()) {
             shootingStarted = false;
         }
@@ -153,34 +142,29 @@ public class AutonomieRedV2 extends OpMode {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
                     }
-                    // Wait until the shot has left (even if still homing) before moving on
-                    if (storageSubsystem.isDoneShooting()) {
-                        setPathState(2);
+                    // Wait until the shot has left before moving on
+                    if (shootingStarted && storageSubsystem.isDoneShooting()) {
+                        follower.followPath(path5); // Combined Pickup 2 (Alignment + Intake)
+                        setPathState(4);
                     }
                 }
                 break;
             // ================= PICKUP 2 SEQUENCE =================
-            case 2: // ALIGN to Pickup 2 (Path 5)
-                if (!isBusy) {
-                    follower.followPath(path5); // Correctly call alignment path
-                    setPathState(3);
-                }
-                break;
-            case 3: // STAB/INTAKE 2 (Path 6)
-                if (!isBusy && storageSubsystem.isIdle()) {
-                    intakeSubsystem.setPower(1);
-                    follower.followPath(path6);
-                    setPathState(4);
-                }
-                break;
+            // Case 2 & 3 merged into Case 1
             case 4: // RETURN to Score (Path 7)
+                follower.setMaxPower(1);
+
+                if (storageSubsystem.isIdle() && Math.hypot(follower.getPose().getX() - pickup2.getX(),
+                        follower.getPose().getY() - pickup2.getY()) < 5) {
+                    intakeSubsystem.setPower(1);
+                }
                 if (!isBusy) {
                     follower.followPath(path7, true);
                     setPathState(5);
                 }
                 break;
             case 5: // ARRIVED Score
-                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                     intakeSubsystem.setPower(-1);
                 }
                 if (!isBusy) {
@@ -193,34 +177,39 @@ public class AutonomieRedV2 extends OpMode {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
                     }
-                    if (storageSubsystem.isDoneShooting()) {
+                    if (shootingStarted && storageSubsystem.isDoneShooting()) {
                         follower.setMaxPower(0.9);
-                        follower.followPath(path8); // Align to Cycle P1
-                        intakeSubsystem.setPower(1);
-                        setPathState(7);
+                        follower.followPath(path8); // Combined Cycle (Alignment P1 + P2)
+                        setPathState(8);
                     }
                 }
                 break;
             // ================= CYCLE SEQUENCE =================
-            case 7: // Finish Cycle Alignment
-                if (!isBusy) {
-                    follower.setMaxPower(1);
-                    follower.followPath(path8_2); // Align to Cycle P2
-                    setPathState(8);
-                }
-                break;
+            // Case 7 merged into Case 6
             case 8: // Wait for fragments and return
-                if ((!isBusy && storageSubsystem.isIdle()) || timedOut) {
-                    if (pathTimer.getElapsedTimeSeconds() > 1) {
+                follower.setMaxPower(0.9);
+
+                if (storageSubsystem.isIdle() && Math.hypot(follower.getPose().getX() - cycle.getX(),
+                        follower.getPose().getY() - cycle.getY()) < 5) {
+                    intakeSubsystem.setPower(1);
+                }
+
+                if (!isBusy && storageSubsystem.isIdle()) {
+                    if (actionTimer.getElapsedTimeSeconds() > 1) {
                         follower.followPath(path9);
                         setPathState(9);
                     }
                 } else {
-                    pathTimer.resetTimer();
+                    actionTimer.resetTimer();
+                }
+
+                if (timedOut) {
+                    follower.followPath(path9);
+                    setPathState(9);
                 }
                 break;
             case 9: // Shooting Cycle
-                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                     intakeSubsystem.setPower(-1);
                 }
                 if (!isBusy) {
@@ -228,27 +217,27 @@ public class AutonomieRedV2 extends OpMode {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
                     }
-                    if (storageSubsystem.isDoneShooting()) {
-                        follower.followPath(path2);
-                        setPathState(10);
+                    if (shootingStarted && storageSubsystem.isDoneShooting()) {
+                        follower.followPath(path2); // Combined Pickup 1 (Alignment + Intake)
+                        setPathState(11);
                     }
                 }
                 break;
-            case 10: // ARRIVED intake 1
-                if (!isBusy) {
-                    intakeSubsystem.setPower(1);
-                    follower.followPath(path3);
-                    setPathState(11);
-                }
-                break;
+            // Case 10 merged into Case 9
             case 11: // STAB/INTAKE 1
+                follower.setMaxPower(1);
+
+                if (storageSubsystem.isIdle() && Math.hypot(follower.getPose().getX() - pickup1.getX(),
+                        follower.getPose().getY() - pickup1.getY()) < 5) {
+                    intakeSubsystem.setPower(1);
+                }
                 if (!isBusy && storageSubsystem.isIdle()) {
                     follower.followPath(path4);
                     setPathState(12);
                 }
                 break;
             case 12: // Final Shooting
-                if (pathTimer.getElapsedTimeSeconds() > 0.5) {
+                if (pathTimer.getElapsedTimeSeconds() > 0.1) {
                     intakeSubsystem.setPower(-1);
                 }
                 if (!isBusy) {
@@ -256,7 +245,7 @@ public class AutonomieRedV2 extends OpMode {
                         storageSubsystem.StartShooting();
                         shootingStarted = true;
                     }
-                    if (storageSubsystem.isDoneShooting()) {
+                    if (shootingStarted && storageSubsystem.isDoneShooting()) {
                         setPathState(-1);
                     }
                 }
@@ -360,11 +349,13 @@ public class AutonomieRedV2 extends OpMode {
             outtakeSubsystem.updateTurretLock(currentPose, targetPose, manualTurretOffset);
         }
 
-        // Global Match Guardian: Shuts down everything at 29.7s to prevent DQ and save pose
+        // Global Match Guardian: Shuts down everything at 29.7s to prevent DQ and save
+        // pose
         if (matchTimer.seconds() > 29.7) {
             follower.breakFollowing();
             follower.setMaxPower(0);
             outtakeSubsystem.SetShootMotorPower(0);
+            outtakeSubsystem.SetAngle(OuttakeSubsystem.INITIAL_ANGLE);
             intakeSubsystem.setPower(0);
             PoseStorage.autoPoseRed = currentPose;
             requestOpModeStop();

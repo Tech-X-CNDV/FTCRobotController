@@ -171,8 +171,8 @@ public class OuttakeSubsystem {
         double angle = CLOSE_ANGLE + (distance - CLOSE_DIST) * (FAR_ANGLE - CLOSE_ANGLE) / (FAR_DIST - CLOSE_DIST)
                 + manualAngleOffset;
 
-        // Clamp to [0.5, 0.9]
-        angle = Math.max(CLOSE_ANGLE, Math.min(FAR_ANGLE, angle));
+        // Clamp to physical servo limits [0, 1] to allow manual offset to work
+        angle = Math.max(0.1, Math.min(1.0, angle));
 
         SetAngle(angle);
     }
@@ -263,7 +263,14 @@ public class OuttakeSubsystem {
     }
 
     public void SetAngle(double angle) {
-        outtakeAngle.setPosition(angle);
+        // Centralized safety clamp: prevent the servo from bottoming out below 0.12, 
+        // which physically jams/binds the outtake linkage.
+        double safeAngle = Math.max(0.12, Math.min(1.0, angle));
+        outtakeAngle.setPosition(safeAngle);
+    }
+
+    public void AutoAngle() {
+        SetAngle(INITIAL_ANGLE);
     }
 
     public void updateTurretLock(Pose robotPose, Pose targetPose, double manualOffset) {

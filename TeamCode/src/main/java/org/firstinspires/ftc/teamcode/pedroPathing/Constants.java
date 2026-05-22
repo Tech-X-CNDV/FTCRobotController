@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 
 import com.pedropathing.control.FilteredPIDFCoefficients;
 import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PredictiveBrakingCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.FollowerBuilder;
@@ -18,17 +19,23 @@ public class Constants {
         public static FollowerConstants followerConstants = new FollowerConstants()
                         .mass(14.5)
                         .forwardZeroPowerAcceleration(-34.90381022599874)
-                        .lateralZeroPowerAcceleration(-65.65430289749332)
-                        .translationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.035, 0.02))
-                        .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.05, 0))
-                        .useSecondaryTranslationalPIDF(true)
+                        // .lateralZeroPowerAcceleration(-65.65430289749332)
+                        // .translationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.035, 0.02))
+                        // .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.05,
+                        // 0))
+                        // .useSecondaryTranslationalPIDF(true)
                         .headingPIDFCoefficients(new PIDFCoefficients(1, 0, 0.02, 0.02))
-                        .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.1, 0, 0.1, 0))
+                        .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.15, 0, 0.1, 0))
                         .useSecondaryHeadingPIDF(true)
-                        .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.1, 0, 0.00035, 0.6, 0.015))
-                        .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.008, 0, 0.00035, 0.6, 0.02))
-                        .useSecondaryDrivePIDF(true)
-                        .centripetalScaling(0.0005);
+                        .predictiveBrakingCoefficients(new PredictiveBrakingCoefficients(0.1, 0.10796493581003193, 0.0010124177310881163)) // Tune
+
+                        // these
+                        // .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.1, 0, 0.00035, 0.6,
+                        // 0.015))
+                        // .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.008, 0,
+                        // 0.00035, 0.6, 0.02))
+                        // .useSecondaryDrivePIDF(true)
+                        .centripetalScaling(0);
 
         public static MecanumConstants driveConstants = new MecanumConstants()
                         .maxPower(1)

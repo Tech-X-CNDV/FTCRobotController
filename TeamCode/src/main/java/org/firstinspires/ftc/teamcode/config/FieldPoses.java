@@ -12,13 +12,13 @@ public class FieldPoses {
 
     // Pickup 1
     public static final Pose PICKUP_1 = new Pose(47.0110334, 80.3317188, Math.toRadians(-177));
-    public static final Pose GET_PICK_1 = new Pose(17.908908, 80.3317188, Math.toRadians(-177));
+    public static final Pose GET_PICK_1 = new Pose(15.508908, 80.3317188, Math.toRadians(-177));
     public static final Pose POS_GATE = new Pose(22.552620, 80.272503, Math.toRadians(-177));
-    public static final Pose OPEN_GATE = new Pose(16.6, 72.8695589, Math.toRadians(-177));
+    public static final Pose OPEN_GATE = new Pose(10.1, 54, Math.toRadians(-177));
 
     // Pickup 2
     public static final Pose PICKUP_2 = new Pose(46.5110334, 57.334464, Math.toRadians(-177));
-    public static final Pose GET_PICK_2 = new Pose(12.057059, 56.334464, Math.toRadians(-177));
+    public static final Pose GET_PICK_2 = new Pose(10.057059, 56.334464, Math.toRadians(-177));
     public static final Pose GET_PICK_2_POINT = new Pose(41.30171428571428, 70.59542857142856);
 
     // Pickup 3
