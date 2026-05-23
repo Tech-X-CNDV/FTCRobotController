@@ -89,13 +89,16 @@ public class StorageSubsystem {
                 break;
 
             case RECOILING:
-                // Wait for BOTH the motor to reach the back position AND the gate to finish moving
-                boolean motorDone = !storageMotor.isBusy() || Math.abs(storageMotor.getCurrentPosition() - storageMotor.getTargetPosition()) <= 5;
+                // Wait for BOTH the motor to reach the back position AND the gate to finish
+                // moving
+                boolean motorDone = !storageMotor.isBusy()
+                        || Math.abs(storageMotor.getCurrentPosition() - storageMotor.getTargetPosition()) <= 5;
                 boolean gateDone = timer.milliseconds() > GATE_MOVEMENT_TIME_MS;
                 boolean recoilTimeout = timer.milliseconds() > 1000; // Safety timeout to prevent getting stuck
 
                 if ((motorDone && gateDone) || recoilTimeout) {
-                    // Target a full drum cycle (3 motor revolutions) to push all 3 balls and land on home
+                    // Target a full drum cycle (3 motor revolutions) to push all 3 balls and land
+                    // on home
                     int shootStart = storageMotor.getCurrentPosition();
                     storageMotor.setTargetPosition(shootStart + (int) FULL_CYCLE_TICKS);
                     storageMotor.setMode(RunMode.RUN_TO_POSITION);
@@ -107,7 +110,7 @@ public class StorageSubsystem {
 
             case NUDGING:
                 // Effectively merged into RECOILING, kept for enum compatibility
-                currentState = State.IDLE; 
+                currentState = State.IDLE;
                 break;
 
             case SHOOTING:
@@ -125,7 +128,8 @@ public class StorageSubsystem {
                 }
 
                 // Complete when motor reaches target (3 revs) or safety timeout
-                boolean shootDone = (storageMotor.getCurrentPosition() >= storageMotor.getTargetPosition() - 10) || !storageMotor.isBusy();
+                boolean shootDone = (storageMotor.getCurrentPosition() >= storageMotor.getTargetPosition() - 10)
+                        || !storageMotor.isBusy();
                 if (shootDone || elapsed > 1000) {
                     if (outtake != null)
                         outtake.autoShotOffset = 0; // CRITICAL: Reset to 0 when done
@@ -146,7 +150,7 @@ public class StorageSubsystem {
                         storageMotor.setPower(1.0); // Hold zero
                         currentState = State.IDLE;
                         hasCalibrated = true;
-                        
+
                         if (shootQueued) {
                             shootQueued = false;
                             StartShooting();
@@ -165,11 +169,10 @@ public class StorageSubsystem {
                 }
 
                 // 3. ARRIVAL: If we reached the target zero but haven't hit the magnet yet,
-                // we might have overshot or undershot. Give the drum a short correction window
-                // before bailing to full homing — prevents a premature full-home on fast overshoot.
+                // we might have overshot or undershot.
                 int error = Math.abs(storageMotor.getCurrentPosition() - storageMotor.getTargetPosition());
                 if (error < 15 || !storageMotor.isBusy()) {
-                    if (timer.milliseconds() > 300) { // Extended settle: let the drum stop fully
+                    if (timer.milliseconds() > 150) { // Settle time
                         if (magneticSensor.isPressed()) {
                             consecutivePresses++;
                             if (consecutivePresses >= DEBOUNCE_THRESHOLD) {
@@ -188,21 +191,9 @@ public class StorageSubsystem {
                             }
                         } else {
                             consecutivePresses = 0;
-                            // Missed the magnet — try a small correction nudge in both directions
-                            // before bailing to full homing. Pick the shorter path: nudge forward
-                            // (positive, toward the next slot) or back (negative, toward the hit spot).
-                            int currentPos = storageMotor.getCurrentPosition();
-                            // Nudge toward where the magnet should be: slightly forward if we undershot,
-                            // slightly back if we overshot. Use a fixed 25-tick probe in each direction.
-                            int nudgeTarget = (currentPos > storageMotor.getTargetPosition())
-                                    ? currentPos - 25  // overshot: go back toward magnet
-                                    : currentPos + 25; // undershot: go forward toward magnet
-                            storageMotor.setTargetPosition(nudgeTarget);
-                            storageMotor.setMode(RunMode.RUN_TO_POSITION);
-                            storageMotor.setPower(0.5);
-                            timer.reset(); // Give another settle window to detect the magnet
-
-                            // If the timeout failsafe (1500ms) fires before we find it, full homing kicks in
+                            // We missed the magnet.
+                            hasCalibrated = false;
+                            ResetToIntake(true);
                         }
                     }
                 }
@@ -221,13 +212,14 @@ public class StorageSubsystem {
                     storageMotor.setPower(0);
                 }
 
-                // Physical drift monitoring: if calibrated and in IDLE, the magnet must be pressed.
+                // Physical drift monitoring: if calibrated and in IDLE, the magnet must be
+                // pressed.
                 // If it's not pressed, we track it to detect true physical drift (slippage).
                 if (hasCalibrated) {
                     if (magneticSensor.isPressed()) {
                         driftTimer.reset();
                     } else {
-                        if (driftTimer.milliseconds() > 800) { // If magnet is lost for > 800ms in IDLE
+                        if (driftTimer.milliseconds() > 500) { // If magnet is lost for > 500ms in IDLE
                             hasCalibrated = false; // Mark uncalibrated so it forces re-homing next time or auto-homes
                             ResetToIntake(true); // Force full homing to find the magnet again
                         }
@@ -346,8 +338,10 @@ public class StorageSubsystem {
             return;
         }
 
-        // CRITICAL FAILSAFE: If not calibrated (magnet position unknown) or if not physically on the magnet, force homing first and queue the shot.
-        if (!hasCalibrated || (currentState == State.IDLE && !magneticSensor.isPressed())) {
+        // CRITICAL FAILSAFE: If not calibrated, force homing first and queue the shot.
+        // Homing owns the magnetic sensor check; once calibrated, shooting trusts the
+        // stored zero position.
+        if (!hasCalibrated) {
             shootQueued = true;
             ResetToIntake(true); // Force full homing
             return;
@@ -361,7 +355,7 @@ public class StorageSubsystem {
         storageMotor.setTargetPosition(currentPos + RECOIL_TICKS_DELTA);
         storageMotor.setMode(RunMode.RUN_TO_POSITION);
         storageMotor.setPower(RECOIL_POWER);
-        
+
         currentState = State.RECOILING;
     }
 
@@ -397,7 +391,7 @@ public class StorageSubsystem {
 
             storageMotor.setTargetPosition((int) (currentPos + delta));
             storageMotor.setMode(RunMode.RUN_TO_POSITION);
-            storageMotor.setPower(0.7); // Increased: faster arrival = less coasting overshoot
+            storageMotor.setPower(0.5);
 
             OpenGate();
             timer.reset();
